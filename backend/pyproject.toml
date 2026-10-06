@@ -7,4 +7,31 @@ requires-python = ">=3.10"
 dependencies = [
     "fastapi[standard]>=0.142.2",
     "pydantic>=2.13.5",
+    "transformers>=4.44,<5",
 ]
+
+[project.optional-dependencies]
+cpu = ["torch>=2.6"]
+cuda = ["torch>=2.6"]
+
+[dependency-groups]
+dev = ["pytest>=8,<10", "httpx>=0.28"]
+
+[tool.uv]
+conflicts = [[{ extra = "cpu" }, { extra = "cuda" }]]
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cpu", extra = "cpu" },
+    { index = "pytorch-cuda", extra = "cuda" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cuda"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
