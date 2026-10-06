@@ -1,0 +1,122 @@
+[
+  {
+    "ID": "elektromagnetiska_hot",
+    "name": "Elektromagnetiska hot",
+    "description": "Elektromagnetiska hot: Störningar eller skador på elektronik, kommunikation och andra tekniska system genom elektromagnetisk påverkan."
+  },
+  {
+    "ID": "händelser_med_biologiska_ämnen",
+    "name": "Händelser med biologiska ämnen",
+    "description": "Händelser med biologiska ämnen: Spridning eller exponering för biologiska ämnen som kan påverka människor, djur, livsmedel eller miljö."
+  },
+  {
+    "ID": "isbildning_och_isstorm",
+    "name": "Isbildning och isstorm",
+    "description": "Isbildning och isstorm: Omfattande isbildning som kan påverka transporter, elförsörjning, vegetation och fysisk infrastruktur."
+  },
+  {
+    "ID": "jordbävningar",
+    "name": "Jordbävningar",
+    "description": "Jordbävningar: Markrörelser som kan orsaka skador på byggnader, infrastruktur och samhällsfunktioner."
+  },
+  {
+    "ID": "kemiska_och_explosiva_händelser",
+    "name": "Kemiska och explosiva händelser",
+    "description": "Kemiska och explosiva händelser: Utsläpp av farliga kemikalier, explosioner eller andra händelser med kemiska eller explosiva ämnen."
+  },
+  {
+    "ID": "kärnvapen",
+    "name": "Kärnvapen",
+    "description": "Kärnvapen: Händelser relaterade till användning eller konsekvenser av kärnvapen, inklusive strålning och omfattande sekundära effekter."
+  },
+  {
+    "ID": "låga_temperaturer",
+    "name": "Låga temperaturer",
+    "description": "Låga temperaturer: Perioder av extrem kyla som påverkar människor, energisystem, transporter och annan service."
+  },
+  {
+    "ID": "meteoriter_och_asteroider",
+    "name": "Meteoriter och asteroider",
+    "description": "Meteoriter och asteroider: Nedslag eller andra effekter av objekt från rymden."
+  },
+  {
+    "ID": "oljeutsläpp_och_föroreningsolyckor_till_sjöss",
+    "name": "Oljeutsläpp och föroreningsolyckor till sjöss",
+    "description": "Oljeutsläpp och föroreningsolyckor till sjöss: Utsläpp som kan få omfattande konsekvenser för kustmiljö, sjöfart och samhällsekonomi."
+  },
+  {
+    "ID": "olyckor_med_radioaktiva_ämnen",
+    "name": "Olyckor med radioaktiva ämnen",
+    "description": "Olyckor med radioaktiva ämnen: Spridning eller risk för exponering för radioaktiva ämnen."
+  },
+  {
+    "ID": "olyckor_vid_evenemang_och_folksamlingar",
+    "name": "Olyckor vid evenemang och folksamlingar",
+    "description": "Olyckor vid evenemang och folksamlingar: Händelser där många människor samtidigt kan utsättas för fara, exempelvis vid trängsel, brand eller panik."
+  },
+  {
+    "ID": "ras_och_skred",
+    "name": "Ras och skred",
+    "description": "Ras och skred: Markrörelser som kan påverka bostäder, vägar, järnväg, VA och annan infrastruktur."
+  },
+  {
+    "ID": "sabotage",
+    "name": "Sabotage",
+    "description": "Sabotage: Avsiktlig påverkan på verksamheter, infrastrukturer eller system i syfte att orsaka skada eller störning."
+  },
+  {
+    "ID": "skogs-_och_vegetationsbränder",
+    "name": "Skogs- och vegetationsbränder",
+    "description": "Skogs- och vegetationsbränder: Omfattande bränder med påverkan på människor, egendom, miljö, transporter och räddningsresurser."
+  },
+  {
+    "ID": "solstormar",
+    "name": "Solstormar",
+    "description": "Solstormar: Rymdväder som kan påverka elnät, satelliter, kommunikation och navigationssystem."
+  },
+  {
+    "ID": "stora_snömängder",
+    "name": "Stora snömängder",
+    "description": "Stora snömängder: Snöfall som kan begränsa transporter, framkomlighet, elförsörjning och samhällsservice."
+  },
+  {
+    "ID": "stormar",
+    "name": "Stormar",
+    "description": "Stormar: Kraftiga vindar som kan orsaka personskador, materiella skador och störningar i samhällsviktig infrastruktur."
+  },
+  {
+    "ID": "störningar_i_satellitbaserade_navigationssystem",
+    "name": "Störningar i satellitbaserade navigationssystem",
+    "description": "Störningar i satellitbaserade navigationssystem: Bortfall eller försämring av exempelvis GPS/GNSS med konsekvenser för transporter, logistik och digitala system."
+  },
+  {
+    "ID": "terrorism_och_extremism",
+    "name": "Terrorism och extremism",
+    "description": "Terrorism och extremism: Avsiktliga våldshandlingar eller verksamhet som kan hota människor, samhällsfunktioner och demokratiska institutioner."
+  },
+  {
+    "ID": "vattenbrist_och_torka",
+    "name": "Vattenbrist och torka",
+    "description": "Vattenbrist och torka: Brist på vatten för människor, verksamheter, jordbruk eller andra samhällsfunktioner."
+  },
+  {
+    "ID": "vulkanutbrott",
+    "name": "Vulkanutbrott",
+    "description": "Vulkanutbrott: Vulkanisk aktivitet vars direkta eller indirekta konsekvenser kan påverka exempelvis flyg, transporter och försörjningskedjor."
+  },
+  {
+    "ID": "värmeböljor_och_höga_temperaturer",
+    "name": "Värmeböljor och höga temperaturer",
+    "description": "Värmeböljor och höga temperaturer: Långvarig värme med konsekvenser för människors hälsa, omsorg, arbetsmiljö och teknisk infrastruktur."
+  },
+  {
+    "ID": "åska_och_blixtnedslag",
+    "name": "Åska och blixtnedslag",
+    "description": "Åska och blixtnedslag: Händelser som kan orsaka brand, elavbrott och skador på tekniska system."
+  },
+  {
+    "ID": "översvämningar",
+    "name": "Översvämningar",
+    "description": "Översvämningar: Höga vattennivåer eller stora vattenflöden som påverkar bebyggelse, infrastruktur och verksamheter."
+  }
+]

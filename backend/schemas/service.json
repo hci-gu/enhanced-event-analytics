@@ -1,0 +1,57 @@
+[
+  {
+    "ID": "vatten_va",
+    "name": "Vatten/VA",
+    "description": "Vatten/VA: Dricksvatten, avloppshantering och relaterad teknisk infrastruktur."
+  },
+  {
+    "ID": "avfall",
+    "name": "Avfall",
+    "description": "Avfall: Insamling, transport och behandling av avfall."
+  },
+  {
+    "ID": "skola",
+    "name": "Skola",
+    "description": "Skola: Förskola, grundskola och andra kommunala utbildningsverksamheter."
+  },
+  {
+    "ID": "vård",
+    "name": "Vård",
+    "description": "Vård: Kommunal hälso- och sjukvård och närliggande verksamheter."
+  },
+  {
+    "ID": "omsorg_socialtjänst",
+    "name": "Omsorg/socialtjänst",
+    "description": "Omsorg/socialtjänst: Äldreomsorg, stödinsatser, socialtjänst och verksamheter för personer med särskilda behov."
+  },
+  {
+    "ID": "park_väg",
+    "name": "Park/väg",
+    "description": "Park/väg: Kommunal väg-, trafik-, park- och framkomlighetsverksamhet."
+  },
+  {
+    "ID": "bostäder_lokaler",
+    "name": "Bostäder/lokaler",
+    "description": "Bostäder/lokaler: Kommunala fastigheter, lokaler och bostadsrelaterade funktioner."
+  },
+  {
+    "ID": "hamn",
+    "name": "Hamn",
+    "description": "Hamn: Hamnverksamhet och dess betydelse för transporter och försörjning."
+  },
+  {
+    "ID": "evenemang",
+    "name": "Evenemang",
+    "description": "Evenemang: Publika aktiviteter och större sammankomster."
+  },
+  {
+    "ID": "räddningstjänst",
+    "name": "Räddningstjänst",
+    "description": "Räddningstjänst: Förmåga att förebygga och hantera olyckor och räddningsinsatser."
+  },
+  {
+    "ID": "kultur",
+    "name": "Kultur",
+    "description": "Kultur: Bibliotek, kulturverksamheter, mötesplatser och relaterade funktioner."
+  }
+]
