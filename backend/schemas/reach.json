@@ -1,0 +1,22 @@
+[
+  {
+    "ID": "1._egen_verksamhet___förvaltning___bolag",
+    "name": "1. Egen verksamhet / förvaltning / bolag",
+    "description": "1. Egen verksamhet / förvaltning / bolag: Händelsen har direkt påverkan på den egna organisationens verksamhet, resurser, personal, system eller uppdrag."
+  },
+  {
+    "ID": "2._lokalt",
+    "name": "2. Lokalt",
+    "description": "2. Lokalt: Händelsen eller konsekvenserna påverkar kommunen och dess invånare eller verksamheter."
+  },
+  {
+    "ID": "3._regionalt",
+    "name": "3. Regionalt",
+    "description": "3. Regionalt: Händelsen omfattar flera kommuner eller har tydliga regionala beroenden och konsekvenser."
+  },
+  {
+    "ID": "4._nationellt_internationellt",
+    "name": "4. Nationellt/internationellt",
+    "description": "4. Nationellt/internationellt: Händelsen sker utanför det direkta geografiska ansvarsområdet men kan ändå skapa konsekvenser lokalt."
+  }
+]
