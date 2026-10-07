@@ -3,7 +3,11 @@
 ![image](assets/system-overview.png)
 
 ## Frontend
-TypeScript React frontend.
+TypeScript React homepage with an event textbox, analysis submission, and a
+search input (search results are not implemented). The browser calls
+`POST /api/analyze-event`; the development/preview proxy forwards this to the
+backend's `/analyze-event` using `API_URL`. Production requires the same proxy
+rewrite. Homepage colors are configurable in `frontend/src/colors.css`.
 
 ## Backend
 FastAPI exposes `POST /analyze-event`, accepting JSON with a non-empty `text`

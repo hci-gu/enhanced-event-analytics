@@ -1,121 +1,117 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
+import { useLayoutEffect, useRef, useState } from 'react'
+import type { FormEvent } from 'react'
+import { submitEvent } from './api'
 import './App.css'
 
+type Feedback = { kind: 'info' | 'error'; message: string }
+
 function App() {
-  const [count, setCount] = useState(0)
+  const [text, setText] = useState('')
+  const [search, setSearch] = useState('')
+  const [keyboardFocus, setKeyboardFocus] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [feedback, setFeedback] = useState<Feedback | null>(null)
+  const requestPending = useRef(false)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const formRef = useRef<HTMLFormElement>(null)
+
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current
+    const form = formRef.current
+    if (!textarea || !form) return
+
+    // Measure content at its current width; flex sizing supplies the height cap.
+    function resizeTextarea() {
+      if (!textarea) return
+      textarea.style.height = '0px'
+      textarea.style.height = `${textarea.scrollHeight}px`
+    }
+
+    resizeTextarea()
+    const observer = new ResizeObserver(resizeTextarea)
+    observer.observe(form)
+    return () => observer.disconnect()
+  }, [text])
+
+  async function analyzeEvent(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const trimmedText = text.trim()
+    if (!trimmedText || requestPending.current) return
+
+    requestPending.current = true
+    setIsLoading(true)
+    setFeedback(null)
+
+    try {
+      const message = await submitEvent(trimmedText)
+      setFeedback({ kind: 'info', message })
+    } catch (error) {
+      setFeedback({
+        kind: 'error',
+        message: error instanceof Error ? error.message : 'Förfrågan misslyckades. Försök igen.',
+      })
+    } finally {
+      requestPending.current = false
+      setIsLoading(false)
+    }
+  }
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
+    <main
+      className="homepage"
+      data-keyboard-focus={keyboardFocus}
+      onPointerDownCapture={() => setKeyboardFocus(false)}
+      onKeyDownCapture={(event) => {
+        if (event.key === 'Tab') setKeyboardFocus(true)
+      }}
+    >
+      <div className="search-row">
+        <label className="search-widget">
+          <span className="visually-hidden">Sök händelser</span>
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="10.5" cy="10.5" r="6.5" />
+            <path d="m16 16 5 5" />
           </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+          <input
+            type="search"
+            placeholder="Sök"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </label>
+      </div>
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+      <section className="event-section" aria-labelledby="homepage-title">
+        <h1 id="homepage-title">Förstärkt Analysförmåga</h1>
+        <form ref={formRef} onSubmit={analyzeEvent} aria-busy={isLoading}>
+          <div className="event-widget">
+            <label className="visually-hidden" htmlFor="event-text">Händelsetext</label>
+            <textarea
+              ref={textareaRef}
+              rows={1}
+              id="event-text"
+              placeholder="Händelsetext…"
+              value={text}
+              onChange={(event) => {
+                setText(event.target.value)
+                if (!requestPending.current) setFeedback(null)
+              }}
+              readOnly={isLoading}
+              required
+            />
+            <div className="event-actions">
+              <button type="submit" disabled={!text.trim() || isLoading}>
+                {isLoading ? 'Analyserar…' : 'Analysera'}
+              </button>
+            </div>
+          </div>
+          <div className="feedback" role="status" aria-live="polite" aria-atomic="true">
+            {isLoading && <p>Skickar händelsetexten…</p>}
+            {feedback && <p className={`feedback-${feedback.kind}`}>{feedback.message}</p>}
+          </div>
+        </form>
+      </section>
+    </main>
   )
 }
 
