@@ -1,22 +1,27 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import { checkHealth, submitEvent } from './api'
+import { checkHealth, streamAnalysis } from './api'
+import { failAnalysis, initialAnalysis } from './analysis'
+import type { AnalysisState } from './analysis'
+import AnalysisScreen from './AnalysisScreen'
 import './App.css'
-
-type Feedback = { kind: 'info' | 'error'; message: string }
 
 function App() {
   const [text, setText] = useState('')
   const [search, setSearch] = useState('')
   const [keyboardFocus, setKeyboardFocus] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [feedback, setFeedback] = useState<Feedback | null>(null)
+  const [analysis, setAnalysis] = useState<AnalysisState | null>(null)
+  const hasAnalysis = analysis !== null
   const [healthError, setHealthError] = useState<string | null>(null)
   const healthRequest = useRef<Promise<void> | null>(null)
   const healthDialogRef = useRef<HTMLDialogElement>(null)
   const requestPending = useRef(false)
+  const requestController = useRef<AbortController | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
+
+  useEffect(() => () => requestController.current?.abort(), [])
 
   useEffect(() => {
     let active = true
@@ -53,28 +58,31 @@ function App() {
     const observer = new ResizeObserver(resizeTextarea)
     observer.observe(form)
     return () => observer.disconnect()
-  }, [text])
+  }, [text, hasAnalysis])
 
   async function analyzeEvent(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const trimmedText = text.trim()
-    if (!trimmedText || requestPending.current) return
+    if (!trimmedText || requestPending.current || hasAnalysis) return
 
     requestPending.current = true
     setIsLoading(true)
-    setFeedback(null)
+    setAnalysis(initialAnalysis)
+    const controller = new AbortController()
+    requestController.current = controller
 
     try {
-      const message = await submitEvent(trimmedText)
-      setFeedback({ kind: 'info', message })
+      await streamAnalysis(trimmedText, (state) => {
+        if (!controller.signal.aborted) setAnalysis(state)
+      }, controller.signal)
     } catch (error) {
-      setFeedback({
-        kind: 'error',
-        message: error instanceof Error ? error.message : 'Förfrågan misslyckades. Försök igen.',
-      })
+      if (!controller.signal.aborted) {
+        const message = error instanceof Error ? error.message : 'Anslutningen avbröts. Försök igen genom att ladda om sidan.'
+        setAnalysis((current) => failAnalysis(current ?? initialAnalysis, message))
+      }
     } finally {
       requestPending.current = false
-      setIsLoading(false)
+      if (!controller.signal.aborted) setIsLoading(false)
     }
   }
 
@@ -99,6 +107,7 @@ function App() {
         <p id="health-error-message">{healthError}</p>
         <button type="button" autoFocus onClick={() => setHealthError(null)}>Stäng</button>
       </dialog>
+      {analysis ? <AnalysisScreen analysis={analysis} /> : <>
       <div className="search-row">
         <label className="search-widget">
           <span className="visually-hidden">Sök händelser</span>
@@ -128,7 +137,6 @@ function App() {
               value={text}
               onChange={(event) => {
                 setText(event.target.value)
-                if (!requestPending.current) setFeedback(null)
               }}
               readOnly={isLoading}
               required
@@ -139,12 +147,9 @@ function App() {
               </button>
             </div>
           </div>
-          <div className="feedback" role="status" aria-live="polite" aria-atomic="true">
-            {isLoading && <p>Skickar händelsetexten…</p>}
-            {feedback && <p className={`feedback-${feedback.kind}`}>{feedback.message}</p>}
-          </div>
         </form>
       </section>
+      </>}
     </main>
   )
 }

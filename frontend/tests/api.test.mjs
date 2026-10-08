@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { checkHealth, submitEvent } from '../src/api.ts'
+import { checkHealth, streamAnalysis } from '../src/api.ts'
 
 test('checks health through the API proxy and accepts status ok with extra fields', async (t) => {
   const fetchMock = t.mock.method(globalThis, 'fetch', async () =>
@@ -39,51 +39,52 @@ test('rejects network failures and timeouts during health checks', async (t) => 
   }
 })
 
-test('sends trimmed Swedish event text and reports the backend placeholder', async (t) => {
-  const fetchMock = t.mock.method(globalThis, 'fetch', async () =>
-    Response.json({ status: 'not_implemented', results: {} }))
-  const message = await submitEvent('  Händelsetext\n  ')
-  assert.match(message, /inte tillgänglig ännu/)
-  assert.equal(fetchMock.mock.callCount(), 1)
-  assert.deepEqual(fetchMock.mock.calls[0].arguments, [
-    '/api/analyze-event',
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: 'Händelsetext' }),
-    },
-  ])
+function event(type, data) {
+  return `event: ${type}\ndata: ${JSON.stringify(data)}\n\n`
+}
+
+const success = event('analysis_started', { workflows: [{ id: 'risks', label: 'Riskområden' }] }) +
+  event('workflow_started', { id: 'risks' }) +
+  event('workflow_completed', { id: 'risks', results: [{ ID: 'flood', name: 'Översvämningar' }] }) +
+  event('analysis_completed', {})
+
+function streamResponse(contents = success) {
+  return new Response(contents, { headers: { 'Content-Type': 'text/event-stream' } })
+}
+
+test('posts trimmed text and streams actual results', async (t) => {
+  const fetchMock = t.mock.method(globalThis, 'fetch', async () => streamResponse())
+  const states = []
+  await streamAnalysis('  Händelsetext\n  ', (state) => states.push(state))
+  const [url, options] = fetchMock.mock.calls[0].arguments
+  assert.equal(url, '/api/analyze-event/stream')
+  assert.equal(options.method, 'POST')
+  assert.equal(options.headers.Accept, 'text/event-stream')
+  assert.deepEqual(JSON.parse(options.body), { text: 'Händelsetext' })
+  assert.deepEqual(states.map((state) => state.status), ['running', 'running', 'running', 'completed'])
+  assert.equal(states.at(-1).workflows[0].results[0].name, 'Översvämningar')
 })
 
 test('does not send whitespace-only input', async (t) => {
   const fetchMock = t.mock.method(globalThis, 'fetch')
-  await assert.rejects(submitEvent(' \n\t '), /Skriv en händelsetext/)
+  await assert.rejects(streamAnalysis(' \n\t ', () => {}), /Skriv en händelsetext/)
   assert.equal(fetchMock.mock.callCount(), 0)
 })
 
 test('reports HTTP errors including validation and server failures', async (t) => {
   for (const status of [422, 500, 503]) {
     t.mock.method(globalThis, 'fetch', async () => new Response('', { status }))
-    await assert.rejects(submitEvent('Test'), new RegExp(`HTTP ${status}`))
+    await assert.rejects(streamAnalysis('Test', () => {}), new RegExp(`HTTP ${status}`))
     t.mock.restoreAll()
   }
 })
 
 test('reports network failures', async (t) => {
   t.mock.method(globalThis, 'fetch', async () => { throw new TypeError('Failed to fetch') })
-  await assert.rejects(submitEvent('Test'), /inte att nå servern/)
+  await assert.rejects(streamAnalysis('Test', () => {}), /inte att nå servern/)
 })
 
-test('reports non-JSON responses', async (t) => {
-  t.mock.method(globalThis, 'fetch', async () => new Response('<html>Proxy error</html>'))
-  await assert.rejects(submitEvent('Test'), /ogiltigt svar/)
-})
-
-test('reports unexpected JSON response shapes', async (t) => {
-  for (const body of [null, [], {}, { status: 'done', results: {} },
-    { status: 'not_implemented', results: null }, { status: 'not_implemented', results: [] }]) {
-    t.mock.method(globalThis, 'fetch', async () => Response.json(body))
-    await assert.rejects(submitEvent('Test'), /oväntat svar/)
-    t.mock.restoreAll()
-  }
+test('rejects non-stream responses', async (t) => {
+  t.mock.method(globalThis, 'fetch', async () => Response.json({ status: 'ok' }))
+  await assert.rejects(streamAnalysis('Test', () => {}), /ogiltigt analysflöde/)
 })

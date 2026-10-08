@@ -32,4 +32,11 @@
   --status-info-text: var(--primary-color);
   --status-error-background: #ffede5;
   --status-error-text: #8c3020;
+
+  /* Workflow status and results */
+  --workflow-muted-text: #82775e;
+  --workflow-check-text: #fff8d9;
+  --progress-track-color: #d9ca92;
+  --results-panel-background: #fff4c4;
+  --result-row-background: #fff8d9;
 }

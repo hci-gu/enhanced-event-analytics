@@ -1,3 +1,6 @@
+import { readAnalysisStream } from './analysis.ts'
+import type { AnalysisState } from './analysis.ts'
+
 export async function checkHealth(): Promise<void> {
   let response: Response
   try {
@@ -25,40 +28,26 @@ export async function checkHealth(): Promise<void> {
   }
 }
 
-export async function submitEvent(text: string): Promise<string> {
+export async function streamAnalysis(
+  text: string, onState: (state: AnalysisState) => void, signal?: AbortSignal,
+): Promise<void> {
   const trimmedText = text.trim()
   if (!trimmedText) throw new Error('Skriv en händelsetext först.')
 
   let response: Response
   try {
-    response = await fetch('/api/analyze-event', {
+    response = await fetch('/api/analyze-event/stream', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
       body: JSON.stringify({ text: trimmedText }),
+      signal,
     })
   } catch {
     throw new Error('Det gick inte att nå servern. Kontrollera anslutningen och försök igen.')
   }
-
-  if (!response.ok) {
-    throw new Error(`Förfrågan misslyckades (HTTP ${response.status}). Försök igen.`)
+  if (!response.ok) throw new Error(`Förfrågan misslyckades (HTTP ${response.status}). Försök igen.`)
+  if (!response.body || !response.headers.get('content-type')?.includes('text/event-stream')) {
+    throw new Error('Servern skickade ett ogiltigt analysflöde.')
   }
-
-  let result: unknown
-  try {
-    result = await response.json()
-  } catch {
-    throw new Error('Servern skickade ett ogiltigt svar. Försök igen.')
-  }
-
-  if (
-    typeof result !== 'object' || result === null ||
-    !('status' in result) || result.status !== 'not_implemented' ||
-    !('results' in result) || typeof result.results !== 'object' ||
-    result.results === null || Array.isArray(result.results)
-  ) {
-    throw new Error('Servern skickade ett oväntat svar. Försök igen.')
-  }
-
-  return 'Texten har tagits emot. Analysfunktionen är inte tillgänglig ännu.'
+  await readAnalysisStream(response.body, onState)
 }

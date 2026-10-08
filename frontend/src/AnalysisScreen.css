@@ -1,0 +1,232 @@
+.analysis-screen {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  width: min(100%, 1200px);
+  margin: 0 auto;
+}
+
+.analysis-screen h1 {
+  margin: 12px 0;
+}
+
+.analysis-message {
+  margin: 0 0 24px;
+  text-align: center;
+  color: var(--primary-color);
+}
+
+.analysis-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+  gap: clamp(24px, 5vw, 72px);
+  flex: 1;
+  min-height: 0;
+}
+
+.workflow-status-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.workflow-status-list {
+  list-style: none;
+  padding: 8px 0;
+  margin: 0;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.workflow-status {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 4px;
+  color: var(--workflow-muted-text);
+  font-size: clamp(18px, 2vw, 26px);
+}
+
+.workflow-status > span:nth-child(2) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.workflow-running,
+.workflow-completed {
+  color: var(--primary-color);
+  font-weight: 700;
+}
+
+.workflow-failed {
+  color: var(--status-error-text);
+  font-weight: 700;
+}
+
+.workflow-status small {
+  font-size: 12px;
+}
+
+.workflow-symbol {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border: 2px solid var(--workflow-muted-text);
+  border-radius: 50%;
+  font-size: 22px;
+}
+
+.workflow-completed .workflow-symbol {
+  background: var(--primary-color);
+  color: var(--workflow-check-text);
+  border-color: var(--primary-color);
+}
+
+.workflow-failed .workflow-symbol {
+  border-color: var(--status-error-text);
+}
+
+.workflow-spinner {
+  border-color: var(--progress-track-color);
+  border-top-color: var(--primary-color);
+  animation: workflow-spin 900ms linear infinite;
+}
+
+.analysis-progress {
+  position: relative;
+  width: 88px;
+  height: 88px;
+  margin: 24px 0 8px;
+  flex-shrink: 0;
+}
+
+.analysis-progress svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.analysis-progress circle {
+  fill: none;
+  stroke-width: 4px;
+}
+
+.progress-track {
+  stroke: var(--progress-track-color);
+}
+
+.progress-value {
+  stroke: var(--primary-color);
+  stroke-linecap: round;
+}
+
+.analysis-progress span {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
+.workflow-results-panel {
+  min-height: 0;
+  overflow-y: auto;
+  overflow-anchor: none;
+  scrollbar-gutter: stable;
+  padding: 20px;
+  border: 2px solid var(--border-color);
+  border-radius: 22px;
+  background: var(--results-panel-background);
+  box-shadow: 0 8px 24px var(--widget-shadow-color);
+}
+
+.workflow-results-panel h2 {
+  margin: 0 0 20px;
+  font-size: 20px;
+  color: var(--primary-color);
+}
+
+.results-empty {
+  color: var(--workflow-muted-text);
+}
+
+.workflow-result {
+  margin-bottom: 12px;
+  border: 2px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--result-row-background);
+  color: var(--text-color);
+  box-shadow: 0 3px 8px var(--widget-shadow-edge-color);
+}
+
+.workflow-result summary {
+  padding: 12px 16px;
+  cursor: pointer;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.workflow-result p,
+.workflow-result ul {
+  margin: 0;
+  padding: 0 16px 16px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.workflow-result ul {
+  padding-left: 36px;
+}
+
+.analysis-error {
+  flex-shrink: 0;
+  max-height: 20dvh;
+  overflow-y: auto;
+  margin: 16px 0 0;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: var(--status-error-background);
+  color: var(--status-error-text);
+}
+
+@keyframes workflow-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 600px) {
+  .analysis-columns {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1.2fr);
+    gap: 16px;
+  }
+
+  .workflow-status {
+    padding: 6px 4px;
+  }
+
+  .analysis-progress {
+    width: 56px;
+    height: 56px;
+    margin: 8px 0 0;
+    font-size: 14px;
+  }
+
+  .workflow-results-panel {
+    padding: 14px;
+  }
+}
+
+@media (max-height: 500px) {
+  .analysis-screen h1 { font-size: 24px; margin: 0 0 8px; }
+  .analysis-message { margin-bottom: 12px; }
+  .analysis-progress { width: 48px; height: 48px; margin: 8px 0 0; font-size: 12px; }
+  .workflow-status { padding: 6px 4px; font-size: 18px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workflow-spinner { animation: none; }
+}
