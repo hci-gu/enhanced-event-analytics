@@ -117,13 +117,18 @@ available for scripts and other clients with the same response and error contrac
 
 ## Live analysis stream
 
+Both analysis endpoints generate a fresh UUID v4 reference for each validated
+request, available in the `X-Analysis-ID` response header. The JSON endpoint's
+response body is unchanged. References are logged but are not persisted or
+queryable yet. Stream metadata includes the same UUID as `analysis_id`.
+
 `POST /analyze-event/stream` accepts the same `{ "text": "..." }` payload and
 returns `text/event-stream`. Input validation occurs before streaming (HTTP 422).
 Each frame is `event: <name>` followed by `data: <JSON>` and a blank line:
 
 | Event | JSON data |
 | --- | --- |
-| `analysis_started` | `{ "workflows": [{ "id": "risks", "label": "Riskområden" }, ...] }` |
+| `analysis_started` | `{ "analysis_id": "<uuid>", "workflows": [{ "id": "risks", "label": "Riskområden" }, ...] }` |
 | `workflow_started` | `{ "id": "risks" }` |
 | `workflow_completed` | `{ "id": "risks", "results": [{ "ID": "...", "name": "..." }] }` |
 | `workflow_failed` | `{ "id": "risks", "message": "...", "code": 502 }` |

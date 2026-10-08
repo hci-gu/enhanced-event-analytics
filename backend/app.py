@@ -9,10 +9,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from threading import Lock
 from typing import Any, Literal
+from uuid import uuid4
 
 import torch
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 from transformers import (
@@ -135,14 +136,18 @@ class AnalyzeEventResponse(BaseModel):
         503: {"description": "Loaded model does not support the generation workflow"},
     },
 )
-def analyze_event(payload: AnalyzeEventRequest, request: Request) -> AnalyzeEventResponse:
-    logger.info("POST /analyze-event triggered (text_length=%d)", len(payload.text))
+def analyze_event(payload: AnalyzeEventRequest, request: Request, response: Response) -> AnalyzeEventResponse:
+    analysis_id = str(uuid4())
+    response.headers["X-Analysis-ID"] = analysis_id
+    logger.info("POST /analyze-event triggered (analysis_id=%s, text_length=%d)", analysis_id, len(payload.text))
     try:
         results = run_workflows(
             payload.text, request.app.state.runtime, request.app.state.workflow_categories
         )
     except WorkflowError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=exc.status_code, detail=str(exc), headers={"X-Analysis-ID": analysis_id}
+        ) from exc
     return AnalyzeEventResponse(results=results)
 
 
@@ -157,6 +162,8 @@ def encode_event(event: str, data: dict[str, Any]) -> str:
     responses={200: {"content": {"text/event-stream": {"schema": {"type": "string"}}}}},
 )
 def analyze_event_stream(payload: AnalyzeEventRequest, request: Request) -> StreamingResponse:
+    analysis_id = str(uuid4())
+    logger.info("POST /analyze-event/stream triggered (analysis_id=%s, text_length=%d)", analysis_id, len(payload.text))
     runtime = request.app.state.runtime
     categories = request.app.state.workflow_categories
 
@@ -164,6 +171,8 @@ def analyze_event_stream(payload: AnalyzeEventRequest, request: Request) -> Stre
         current_id = None
         try:
             for event, data in iter_workflow_events(payload.text, runtime, categories):
+                if event == "analysis_started":
+                    data = {**data, "analysis_id": analysis_id}
                 if event == "workflow_started":
                     current_id = data["id"]
                 yield encode_event(event, data)
@@ -174,7 +183,7 @@ def analyze_event_stream(payload: AnalyzeEventRequest, request: Request) -> Stre
                 502: "Modellanalysen misslyckades eller gav ett ogiltigt resultat.",
                 503: "Den laddade modellen stöder inte analysen.",
             }.get(code, "Ett oväntat serverfel avbröt analysen.")
-            logger.exception("Streaming analysis failed (workflow=%s)", current_id)
+            logger.exception("Streaming analysis failed (analysis_id=%s, workflow=%s)", analysis_id, current_id)
             yield encode_event("workflow_failed", {
                 "id": current_id, "message": message, "code": code,
             })
@@ -183,4 +192,5 @@ def analyze_event_stream(payload: AnalyzeEventRequest, request: Request) -> Stre
     return StreamingResponse(stream(), media_type="text/event-stream", headers={
         "Cache-Control": "no-cache, no-transform",
         "X-Accel-Buffering": "no",
+        "X-Analysis-ID": analysis_id,
     })

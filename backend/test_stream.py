@@ -1,5 +1,6 @@
 import json
 from unittest.mock import Mock
+from uuid import UUID
 
 import pytest
 from fastapi.testclient import TestClient
@@ -51,7 +52,9 @@ def test_stream_endpoint_contract_and_existing_json_endpoint(loaders, monkeypatc
     assert response.headers["content-type"].startswith("text/event-stream")
     assert response.headers["x-accel-buffering"] == "no"
     events = parse_events(response)
-    assert events[0] == ("analysis_started", {"workflows": [
+    analysis_id = response.headers["x-analysis-id"]
+    assert UUID(analysis_id).version == 4
+    assert events[0] == ("analysis_started", {"analysis_id": analysis_id, "workflows": [
         {"id": "risks", "label": "Riskområden"},
         {"id": "reach", "label": "Räckvidd"},
         {"id": "service", "label": "Verksamheter"},
@@ -60,6 +63,21 @@ def test_stream_endpoint_contract_and_existing_json_endpoint(loaders, monkeypatc
         "workflow_started", "workflow_completed",
     ] * 3 + ["analysis_completed"]
     assert ordinary.json() == {"status": "ok", "results": {"risks": [], "reach": [], "service": []}}
+    assert UUID(ordinary.headers["x-analysis-id"]).version == 4
+    assert ordinary.headers["x-analysis-id"] != analysis_id
+
+
+def test_each_analysis_gets_a_unique_reference(loaders, monkeypatch):
+    monkeypatch.setattr(workflows, "generate_text", Mock(return_value="[]"))
+    with TestClient(backend.app) as client:
+        responses = [client.post(path, json={"text": "Same event"}) for path in [
+            "/analyze-event/stream", "/analyze-event/stream", "/analyze-event", "/analyze-event",
+        ]]
+    ids = [response.headers["x-analysis-id"] for response in responses]
+    assert len(set(ids)) == 4
+    assert all(UUID(value).version == 4 for value in ids)
+    for response in responses[:2]:
+        assert parse_events(response)[0][1]["analysis_id"] == response.headers["x-analysis-id"]
 
 
 @pytest.mark.parametrize("error,code", [
@@ -79,6 +97,7 @@ def test_failure_preserves_results_and_stops_execution(loaders, monkeypatch, err
     with TestClient(backend.app) as client:
         response = client.post("/analyze-event/stream", json={"text": "Text"})
     events = parse_events(response)
+    assert events[0][1]["analysis_id"] == response.headers["x-analysis-id"]
     assert events[2] == ("workflow_completed", {
         "id": "first", "results": [{"ID": "flood", "name": "Översvämningar"}],
     })
