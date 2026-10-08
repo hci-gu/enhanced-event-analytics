@@ -91,7 +91,7 @@ levels. Service evaluates affected functions and those explicitly involved in ha
 the event, avoiding matches based only on a mentioned location. The shared helper
 handles generation and validated ID-to-name mapping. To add a
 workflow, define a function with that signature and register `Workflow(function,
-"category-file.json")` under its result key. A function that does not need categories
+"category-file.json", "Display label")` under its result key. A function that does not need categories
 can use `Workflow(function)` and receives an empty tuple. Remove an entry to disable
 a workflow. `run_workflows` runs the registered functions in order and collects each
 result under its registry key (`risks`, `reach`, `service`). All three reuse the same
@@ -112,13 +112,46 @@ new tokens. The complete input is capped at 8192 tokens; exceeding it returns HT
 HTTP 502; unsupported runtimes return HTTP 503. Only Gemma's loaded generation
 runtime currently supports the workflow; base models can still start and serve health.
 
-The frontend currently expects `not_implemented` and will reject this new response.
-Frontend result handling is deferred; test the backend through `/docs` or HTTP requests.
+The frontend uses the streaming endpoint below. The existing JSON endpoint remains
+available for scripts and other clients with the same response and error contract.
+
+## Live analysis stream
+
+`POST /analyze-event/stream` accepts the same `{ "text": "..." }` payload and
+returns `text/event-stream`. Input validation occurs before streaming (HTTP 422).
+Each frame is `event: <name>` followed by `data: <JSON>` and a blank line:
+
+| Event | JSON data |
+| --- | --- |
+| `analysis_started` | `{ "workflows": [{ "id": "risks", "label": "Riskområden" }, ...] }` |
+| `workflow_started` | `{ "id": "risks" }` |
+| `workflow_completed` | `{ "id": "risks", "results": [{ "ID": "...", "name": "..." }] }` |
+| `workflow_failed` | `{ "id": "risks", "message": "...", "code": 502 }` |
+| `analysis_completed` | `{}` |
+
+The catalog follows registry order; labels default to the registry key when absent.
+Completed results may contain an empty list. Streaming workflows must return lists
+of matched IDs and display names. Both endpoints share `iter_workflow_events`;
+inference remains serialized by the existing runtime lock. Synchronous stream
+iteration runs in Starlette's worker pool, leaving the event loop free.
+
+The stream stops at the first workflow failure; completed results remain usable.
+After response headers are sent, errors are terminal `workflow_failed` events
+inside HTTP 200, not changed HTTP statuses. The ID can be null for an error before
+a workflow starts. Unexpected exceptions send a safe message; details are logged
+server-side. Clients must treat EOF without a terminal event as interruption.
+There are no stored jobs or automatic resume/retry; an in-flight model call cannot
+be interrupted immediately when a client disconnects.
+
+Reverse proxies must disable response buffering and caching for this endpoint
+and allow long read timeouts (CPU inference can take several minutes). The stream
+sets `X-Accel-Buffering: no` and `Cache-Control: no-cache, no-transform`; configure
+the hosting proxy as well. The frontend's `/api` prefix must be stripped.
 
 ## Verification
 
 ```powershell
-uv run --extra CPU python -m py_compile app.py workflows.py test_app.py test_workflows.py smoke_articles.py
+uv run --extra CPU python -m py_compile app.py workflows.py test_app.py test_workflows.py test_stream.py smoke_articles.py
 uv run --extra CPU python -m pytest
 uv lock --check
 ```

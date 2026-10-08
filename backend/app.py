@@ -1,5 +1,6 @@
 """Event-analysis API with a model shared by requests in each server process."""
 
+import json
 import logging
 import os
 from _thread import LockType
@@ -12,6 +13,7 @@ from typing import Any, Literal
 import torch
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 from transformers import (
     AutoConfig,
@@ -24,7 +26,7 @@ from transformers import (
     ProcessorMixin,
 )
 
-from workflows import WorkflowError, load_workflow_categories, run_workflows
+from workflows import WorkflowError, iter_workflow_events, load_workflow_categories, run_workflows
 
 
 logger = logging.getLogger("uvicorn.error.app")
@@ -142,3 +144,43 @@ def analyze_event(payload: AnalyzeEventRequest, request: Request) -> AnalyzeEven
     except WorkflowError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
     return AnalyzeEventResponse(results=results)
+
+
+def encode_event(event: str, data: dict[str, Any]) -> str:
+    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+
+@app.post(
+    "/analyze-event/stream",
+    response_class=StreamingResponse,
+    summary="Stream sequential workflow progress and results",
+    responses={200: {"content": {"text/event-stream": {"schema": {"type": "string"}}}}},
+)
+def analyze_event_stream(payload: AnalyzeEventRequest, request: Request) -> StreamingResponse:
+    runtime = request.app.state.runtime
+    categories = request.app.state.workflow_categories
+
+    def stream():
+        current_id = None
+        try:
+            for event, data in iter_workflow_events(payload.text, runtime, categories):
+                if event == "workflow_started":
+                    current_id = data["id"]
+                yield encode_event(event, data)
+        except Exception as exc:
+            code = exc.status_code if isinstance(exc, WorkflowError) else 500
+            message = {
+                413: "Händelsetexten och instruktionerna överskrider modellens textgräns.",
+                502: "Modellanalysen misslyckades eller gav ett ogiltigt resultat.",
+                503: "Den laddade modellen stöder inte analysen.",
+            }.get(code, "Ett oväntat serverfel avbröt analysen.")
+            logger.exception("Streaming analysis failed (workflow=%s)", current_id)
+            yield encode_event("workflow_failed", {
+                "id": current_id, "message": message, "code": code,
+            })
+
+    # Starlette advances synchronous iterators in its worker pool, not the event loop.
+    return StreamingResponse(stream(), media_type="text/event-stream", headers={
+        "Cache-Control": "no-cache, no-transform",
+        "X-Accel-Buffering": "no",
+    })

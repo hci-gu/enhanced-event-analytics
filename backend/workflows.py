@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any, Callable, Iterator
 
 import torch
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
@@ -167,13 +167,14 @@ def _categorize(
 class Workflow:
     function: Callable[[str, "ModelRuntime", tuple[Category, ...]], Any]
     category_file: str | None = None
+    label: str | None = None
 
 
 # Add/remove a function and its definition here to change the active workflows.
 WORKFLOWS = {
-    "risks": Workflow(categorize_risks, "risks.json"),
-    "reach": Workflow(categorize_reach, "reach.json"),
-    "service": Workflow(categorize_service, "service.json"),
+    "risks": Workflow(categorize_risks, "risks.json", "Riskområden"),
+    "reach": Workflow(categorize_reach, "reach.json", "Räckvidd"),
+    "service": Workflow(categorize_service, "service.json", "Verksamheter"),
 }
 
 
@@ -185,17 +186,32 @@ def load_workflow_categories() -> dict[str, tuple[Category, ...]]:
     }
 
 
-def run_workflows(
+def iter_workflow_events(
     text: str, runtime: "ModelRuntime", categories: dict[str, tuple[Category, ...]]
-) -> dict[str, Any]:
-    results = {}
-    for name, workflow in WORKFLOWS.items():
+) -> Iterator[tuple[str, dict[str, Any]]]:
+    workflows = tuple(WORKFLOWS.items())
+    yield "analysis_started", {"workflows": [
+        {"id": name, "label": workflow.label or name} for name, workflow in workflows
+    ]}
+    for name, workflow in workflows:
+        yield "workflow_started", {"id": name}
         started = perf_counter()
         logger.info("Workflow '%s' started", name)
         try:
-            results[name] = workflow.function(text, runtime, categories[name])
+            result = workflow.function(text, runtime, categories[name])
         except Exception:
             logger.info("Workflow '%s' failed after %.2fs", name, perf_counter() - started)
             raise
         logger.info("Workflow '%s' completed in %.2fs", name, perf_counter() - started)
+        yield "workflow_completed", {"id": name, "results": result}
+    yield "analysis_completed", {}
+
+
+def run_workflows(
+    text: str, runtime: "ModelRuntime", categories: dict[str, tuple[Category, ...]]
+) -> dict[str, Any]:
+    results = {}
+    for event, data in iter_workflow_events(text, runtime, categories):
+        if event == "workflow_completed":
+            results[data["id"]] = data["results"]
     return results
