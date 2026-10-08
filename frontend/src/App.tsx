@@ -1,6 +1,6 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import { submitEvent } from './api'
+import { checkHealth, submitEvent } from './api'
 import './App.css'
 
 type Feedback = { kind: 'info' | 'error'; message: string }
@@ -11,9 +11,31 @@ function App() {
   const [keyboardFocus, setKeyboardFocus] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [feedback, setFeedback] = useState<Feedback | null>(null)
+  const [healthError, setHealthError] = useState<string | null>(null)
+  const healthRequest = useRef<Promise<void> | null>(null)
+  const healthDialogRef = useRef<HTMLDialogElement>(null)
   const requestPending = useRef(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
+
+  useEffect(() => {
+    let active = true
+    // Reuse the request during StrictMode's development effect replay.
+    healthRequest.current ??= checkHealth()
+    void healthRequest.current.catch((error: unknown) => {
+      if (active) {
+        setHealthError(error instanceof Error ? error.message : 'Hälsokontrollen misslyckades.')
+      }
+    })
+    return () => { active = false }
+  }, [])
+
+  useEffect(() => {
+    const dialog = healthDialogRef.current
+    if (!dialog) return
+    if (healthError && !dialog.open) dialog.showModal()
+    else if (!healthError && dialog.open) dialog.close()
+  }, [healthError])
 
   useLayoutEffect(() => {
     const textarea = textareaRef.current
@@ -65,6 +87,18 @@ function App() {
         if (event.key === 'Tab') setKeyboardFocus(true)
       }}
     >
+      <dialog
+        ref={healthDialogRef}
+        className="health-dialog"
+        role="alertdialog"
+        aria-labelledby="health-error-title"
+        aria-describedby="health-error-message"
+        onCancel={() => setHealthError(null)}
+      >
+        <h2 id="health-error-title">Tjänsten är inte tillgänglig</h2>
+        <p id="health-error-message">{healthError}</p>
+        <button type="button" autoFocus onClick={() => setHealthError(null)}>Stäng</button>
+      </dialog>
       <div className="search-row">
         <label className="search-widget">
           <span className="visually-hidden">Sök händelser</span>

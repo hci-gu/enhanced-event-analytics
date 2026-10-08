@@ -3,7 +3,7 @@ import { createServer as createHttpServer } from 'node:http'
 import { test } from 'node:test'
 import { createServer, preview } from 'vite'
 
-test('development and preview proxy API_URL and strip /api', { timeout: 20000 }, async () => {
+test('development and preview proxy VITE_API_URL and strip /api', { timeout: 20000 }, async () => {
   const requests = []
   const backend = createHttpServer(async (request, response) => {
     let body = ''
@@ -13,8 +13,8 @@ test('development and preview proxy API_URL and strip /api', { timeout: 20000 },
     response.end(JSON.stringify({ status: 'not_implemented', results: {} }))
   })
   await new Promise((resolve) => backend.listen(0, '127.0.0.1', resolve))
-  const originalApiUrl = process.env.API_URL
-  process.env.API_URL = `http://127.0.0.1:${backend.address().port}/`
+  const originalApiUrl = process.env.VITE_API_URL
+  process.env.VITE_API_URL = `http://127.0.0.1:${backend.address().port}/`
   let dev
   let productionPreview
 
@@ -45,7 +45,7 @@ test('development and preview proxy API_URL and strip /api', { timeout: 20000 },
         error ? reject(error) : resolve()))
     }
     await new Promise((resolve) => backend.close(resolve))
-    if (originalApiUrl === undefined) delete process.env.API_URL
-    else process.env.API_URL = originalApiUrl
+    if (originalApiUrl === undefined) delete process.env.VITE_API_URL
+    else process.env.VITE_API_URL = originalApiUrl
   }
 })

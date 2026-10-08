@@ -23,8 +23,10 @@
   padding: 10px 14px;
   background: var(--search-background);
   color: var(--search-text);
-  border: 1px solid var(--border-color);
+  border: 2px solid var(--border-color);
   border-radius: 12px;
+  box-shadow: 0 4px 12px var(--widget-shadow-color),
+    0 1px 2px var(--widget-shadow-edge-color);
 }
 
 .search-widget svg {
@@ -98,8 +100,10 @@ h1 {
   max-height: 290px;
   padding: 16px 20px 10px;
   background: var(--textbox-background);
-  border: 1px solid var(--border-color);
+  border: 2px solid var(--border-color);
   border-radius: 22px;
+  box-shadow: 0 8px 24px var(--widget-shadow-color),
+    0 2px 4px var(--widget-shadow-edge-color);
 }
 
 .event-widget textarea {
@@ -128,19 +132,23 @@ h1 {
   margin-top: 6px;
 }
 
-.event-actions button {
+.event-actions button,
+.health-dialog button {
   min-height: 36px;
   padding: 6px 18px;
-  border: 1px solid var(--button-border);
+  border: 2px solid var(--button-border);
   border-radius: 12px;
   background: var(--button-background);
   color: var(--button-text);
   font-weight: 600;
   cursor: pointer;
+  box-shadow: 0 3px 8px var(--widget-shadow-color),
+    0 1px 2px var(--widget-shadow-edge-color);
   transition: background-color 150ms ease;
 }
 
-.event-actions button:hover:not(:disabled) {
+.event-actions button:hover:not(:disabled),
+.health-dialog button:hover {
   background: var(--button-hover-background);
 }
 
@@ -169,6 +177,36 @@ h1 {
 .feedback .feedback-error {
   color: var(--status-error-text);
   background: var(--status-error-background);
+}
+
+.health-dialog {
+  width: min(440px, calc(100% - 32px));
+  max-height: calc(100dvh - 32px);
+  padding: 24px;
+  border: 2px solid var(--border-color);
+  border-radius: 20px;
+  background: var(--status-error-background);
+  color: var(--status-error-text);
+  box-shadow: 0 8px 24px var(--widget-shadow-color);
+}
+
+.health-dialog::backdrop {
+  background: var(--dialog-backdrop-color);
+}
+
+.health-dialog h2 {
+  margin: 0 0 12px;
+  font-size: 22px;
+}
+
+.health-dialog p {
+  margin: 0 0 20px;
+  line-height: 1.5;
+}
+
+.health-dialog button {
+  display: block;
+  margin-left: auto;
 }
 
 @media (max-width: 600px) {

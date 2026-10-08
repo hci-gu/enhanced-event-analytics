@@ -4,6 +4,11 @@ React and TypeScript homepage with Swedish labels. Search accepts text but does
 not submit or display results yet. Analysera sends trimmed event text to the API;
 the current backend returns a placeholder, not a completed analysis.
 
+On each homepage load, a single `GET /api/health` request checks the backend's
+`/health` endpoint. Only an HTTP success with JSON `status: "ok"` passes.
+Other statuses, invalid responses, network errors, and a 10-second timeout show
+a dismissible error dialog. Close it with Stäng or Escape; reloading checks again.
+
 ## Development
 
 Run from `frontend/` with pnpm:
@@ -14,14 +19,16 @@ Copy-Item .env.example .env
 pnpm dev
 ```
 
-If `.env` already exists, keep it and edit its `API_URL` setting as needed.
-`API_URL` is the backend base URL, defaulting to `http://127.0.0.1:8000`.
+If `.env` already exists, rename its `API_URL` setting to `VITE_API_URL` and keep
+the existing URL value. `VITE_API_URL` is the backend base URL, defaulting to
+`http://127.0.0.1:8000`.
 It is read by Vite from `.env` or the process environment (which takes precedence),
-and is not exposed to browser code. Restart Vite after changing it.
+and configures the proxy. Vite also exposes `VITE_` settings to browser code;
+use a public backend URL without credentials. Restart Vite after changing it.
 Start the backend separately using the instructions in `../backend/README.md`.
 
 The browser posts `{ "text": "..." }` to `/api/analyze-event`. Both `pnpm dev`
-and `pnpm preview` proxy `/api/*` to `API_URL`, stripping the `/api` prefix.
+and `pnpm preview` proxy `/api/*` to `VITE_API_URL`, stripping the `/api` prefix.
 
 ## Colors and layout
 
@@ -55,5 +62,5 @@ Analysera. Submission should preserve text, prevent duplicate requests, and show
 loading, placeholder, HTTP error, network error, or invalid-response feedback.
 
 Deploy `dist/` with a same-origin reverse proxy that forwards `/api/*` to the
-backend and strips `/api`. Vite's proxy and `API_URL` do not configure a static
+backend and strips `/api`. Vite's proxy and `VITE_API_URL` do not configure a static
 production host; configure the backend target in that host's reverse proxy.

@@ -5,6 +5,9 @@
   --text-color: #30291d;
   --border-color: #8b7846;
   --focus-color: #72551b;
+  --widget-shadow-color: rgb(69 55 25 / 14%);
+  --widget-shadow-edge-color: rgb(69 55 25 / 8%);
+  --dialog-backdrop-color: rgb(69 55 25 / 35%);
 
   /* Event textbox */
   --textbox-background: #fff8d9;

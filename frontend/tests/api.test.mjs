@@ -1,6 +1,43 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { submitEvent } from '../src/api.ts'
+import { checkHealth, submitEvent } from '../src/api.ts'
+
+test('checks health through the API proxy and accepts status ok with extra fields', async (t) => {
+  const fetchMock = t.mock.method(globalThis, 'fetch', async () =>
+    Response.json({ status: 'ok', model_loaded: true }))
+  await checkHealth()
+  assert.equal(fetchMock.mock.callCount(), 1)
+  const [url, options] = fetchMock.mock.calls[0].arguments
+  assert.equal(url, '/api/health')
+  assert.equal(options.cache, 'no-store')
+  assert.ok(options.signal instanceof AbortSignal)
+})
+
+test('rejects missing or unhealthy statuses', async (t) => {
+  for (const body of [null, {}, { status: 'error' }, { status: 'OK' }]) {
+    t.mock.method(globalThis, 'fetch', async () => Response.json(body))
+    await assert.rejects(checkHealth(), /inte status "ok"/)
+    t.mock.restoreAll()
+  }
+})
+
+test('rejects failed HTTP health checks', async (t) => {
+  t.mock.method(globalThis, 'fetch', async () => new Response('', { status: 503 }))
+  await assert.rejects(checkHealth(), /HTTP 503/)
+})
+
+test('rejects invalid JSON in health checks', async (t) => {
+  t.mock.method(globalThis, 'fetch', async () => new Response('invalid'))
+  await assert.rejects(checkHealth(), /ogiltigt svar/)
+})
+
+test('rejects network failures and timeouts during health checks', async (t) => {
+  for (const error of [new TypeError('Failed to fetch'), new DOMException('Timed out', 'TimeoutError')]) {
+    t.mock.method(globalThis, 'fetch', async () => { throw error })
+    await assert.rejects(checkHealth(), /inte att nå servern/)
+    t.mock.restoreAll()
+  }
+})
 
 test('sends trimmed Swedish event text and reports the backend placeholder', async (t) => {
   const fetchMock = t.mock.method(globalThis, 'fetch', async () =>
