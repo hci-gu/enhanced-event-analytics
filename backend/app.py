@@ -111,8 +111,12 @@ class AnalyzeEventRequest(BaseModel):
 class AnalyzeEventResponse(BaseModel):
     status: Literal["ok"] = "ok"
     results: dict[str, Any] = Field(
-        description="Results keyed by workflow; risks contains matched category IDs and display names",
-        examples=[{"risks": [{"ID": "översvämningar", "name": "Översvämningar"}]}],
+        description="Results keyed by risks, reach and service; each contains matched IDs and display names",
+        examples=[{
+            "risks": [{"ID": "översvämningar", "name": "Översvämningar"}],
+            "reach": [{"ID": "2._lokalt", "name": "2. Lokalt"}],
+            "service": [{"ID": "vatten_va", "name": "Vatten/VA"}],
+        }],
     )
 
 
@@ -120,8 +124,8 @@ class AnalyzeEventResponse(BaseModel):
     "/analyze-event",
     response_model=AnalyzeEventResponse,
     description=(
-        "Categorize event text using risk descriptions and the shared model. "
-        "Returns zero, one, or multiple risk matches with IDs and display names."
+        "Categorize event text by risks, reach and services using separate prompts and the shared model. "
+        "Each workflow returns zero, one, or multiple matches with IDs and display names."
     ),
     responses={
         413: {"description": "Event and workflow instructions exceed the input token limit"},

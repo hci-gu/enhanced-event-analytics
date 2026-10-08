@@ -64,22 +64,38 @@ Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8000/analyze-event' -Conte
 HTTP 200 response:
 
 ```json
-{"status":"ok","results":{"risks":[{"ID":"översvämningar","name":"Översvämningar"}]}}
+{
+  "status": "ok",
+  "results": {
+    "risks": [{"ID": "översvämningar", "name": "Översvämningar"}],
+    "reach": [{"ID": "2._lokalt", "name": "2. Lokalt"}],
+    "service": [{"ID": "vatten_va", "name": "Vatten/VA"}]
+  }
+}
 ```
 
 Text is trimmed; missing, non-string, empty, and whitespace-only values return
-HTTP 422. The risk workflow can return zero, one, or multiple matches; no matches
-returns `{"status":"ok","results":{"risks":[]}}`. IDs and display names are
-resolved from `schemas/risks.json`. Service, reach, and persistence are not implemented.
+HTTP 422. Each workflow can return zero, one, or multiple matches; no matches
+returns an empty list under that workflow's key. IDs and display names are resolved
+from `schemas/risks.json`, `schemas/reach.json`, and `schemas/service.json`, respectively.
+Persistence is not implemented.
 
 ## Workflows
 
 `workflows.py` contains independent workflow functions and a `WORKFLOWS` registry.
-The current function is `categorize_risks(text, runtime, categories)`. To add a
+The functions are `categorize_risks`, `categorize_reach`, and `categorize_service`,
+each accepting `(text, runtime, categories)` and using its own Swedish system prompt.
+Risks evaluates supported risk areas; reach evaluates geographical/organizational
+scope without assuming the user's organization or automatically selecting broader/narrower
+levels. Service evaluates affected functions and those explicitly involved in handling
+the event, avoiding matches based only on a mentioned location. The shared helper
+handles generation and validated ID-to-name mapping. To add a
 workflow, define a function with that signature and register `Workflow(function,
 "category-file.json")` under its result key. A function that does not need categories
 can use `Workflow(function)` and receives an empty tuple. Remove an entry to disable
-a workflow. `run_workflows` collects each function's result under its registry key.
+a workflow. `run_workflows` runs the registered functions in order and collects each
+result under its registry key (`risks`, `reach`, `service`). All three reuse the same
+model instance; there is one model call per workflow, not a separate model per task.
 
 Category definitions are validated and loaded once during startup before model
 loading. Missing files, invalid JSON, blank/non-string fields, or duplicate IDs
@@ -119,8 +135,9 @@ uv run --extra CPU python smoke_articles.py
 
 This sends both articles to the running backend, reusing its resident model rather
 than loading a second copy. It prints matched IDs/names and checks the response
-contract and unchanged health metadata. Review the flooding article for
+contract for all three workflows and unchanged health metadata. Review the flooding article for
 `Översvämningar` and `Vattenbrist och torka`; check that the suspicious-object article
 accounts for the later finding that the object was not dangerous, without inventing
-an explosion or terrorism. Exact matches are not asserted because quality needs
+an explosion or terrorism. Also review the reach levels and whether service matches
+are supported by actual effects or response activities. Exact matches are not asserted because quality needs
 manual review. A request can take up to five minutes on CPU.

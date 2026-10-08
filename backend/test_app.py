@@ -25,7 +25,8 @@ def loaders(monkeypatch):
 
 
 def test_requests_share_runtime_and_cleanup(loaders, monkeypatch):
-    runner = Mock(return_value={"risks": []})
+    empty_results = {"risks": [], "reach": [], "service": []}
+    runner = Mock(return_value=empty_results)
     monkeypatch.setattr(backend, "run_workflows", runner)
     with TestClient(backend.app) as client:
         runtime = backend.app.state.runtime
@@ -41,7 +42,7 @@ def test_requests_share_runtime_and_cleanup(loaders, monkeypatch):
         for _ in range(2):
             response = client.post("/analyze-event", json={"text": "  Swedish event  "})
             assert response.status_code == 200
-            assert response.json() == {"status": "ok", "results": {"risks": []}}
+            assert response.json() == {"status": "ok", "results": empty_results}
         assert runner.call_count == 2
         runner.assert_called_with("Swedish event", runtime, backend.app.state.workflow_categories)
         loaders[0].assert_called_once_with("test/model")
@@ -66,7 +67,9 @@ def test_unsupported_model_response(loaders):
 def test_article_endpoint_contract(loaders, monkeypatch, article):
     from pathlib import Path
 
-    generator = Mock(return_value='["översvämningar"]')
+    generator = Mock(side_effect=[
+        '["översvämningar"]', '["2._lokalt"]', '["vatten_va"]',
+    ] * 2)
     monkeypatch.setattr(workflows, "generate_text", generator)
     text = (Path(__file__).parent.parent / "data" / article).read_text(encoding="utf-8")
     with TestClient(backend.app) as client:
@@ -76,11 +79,15 @@ def test_article_endpoint_contract(loaders, monkeypatch, article):
             assert response.status_code == 200
             assert response.json() == {
                 "status": "ok",
-                "results": {"risks": [{"ID": "översvämningar", "name": "Översvämningar"}]},
+                "results": {
+                    "risks": [{"ID": "översvämningar", "name": "Översvämningar"}],
+                    "reach": [{"ID": "2._lokalt", "name": "2. Lokalt"}],
+                    "service": [{"ID": "vatten_va", "name": "Vatten/VA"}],
+                },
             }
             assert backend.app.state.runtime is runtime
     # This validates the API plumbing, not the article's actual classification.
-    assert generator.call_count == 2
+    assert generator.call_count == 6
     loaders[1].assert_called_once()
 
 

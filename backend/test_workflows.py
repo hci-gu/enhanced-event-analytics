@@ -24,11 +24,16 @@ def categories():
     ('```json\n["flood"]\n```', ["flood"]),
     ('```\n["flood"]\n```', ["flood"]),
 ])
-def test_risk_matches(categories, monkeypatch, output, expected):
+@pytest.mark.parametrize("function,options_key,prompt", [
+    (workflows.categorize_risks, "riskområden", workflows.RISK_SYSTEM_PROMPT),
+    (workflows.categorize_reach, "räckviddsnivåer", workflows.REACH_SYSTEM_PROMPT),
+    (workflows.categorize_service, "verksamheter", workflows.SERVICE_SYSTEM_PROMPT),
+])
+def test_category_matches(categories, monkeypatch, output, expected, function, options_key, prompt):
     generator = Mock(return_value=output)
     monkeypatch.setattr(workflows, "generate_text", generator)
     runtime = object()
-    results = workflows.categorize_risks("Event text", runtime, categories)
+    results = function("Event text", runtime, categories)
     assert results == [
         {"ID": category.ID, "name": category.name}
         for category in categories if category.ID in expected
@@ -38,21 +43,63 @@ def test_risk_matches(categories, monkeypatch, output, expected):
     assert actual_runtime is runtime
     payload = json.loads(messages[1]["content"])
     assert payload["händelsetext"] == "Event text"
-    assert payload["riskområden"] == [
+    assert payload[options_key] == [
         {"ID": category.ID, "description": category.description} for category in categories
     ]
     assert "Display flood" not in json.dumps(messages)
     assert "noll, en eller flera" in messages[0]["content"]
+    assert messages[0] == {"role": "system", "content": prompt}
 
 
 @pytest.mark.parametrize("output", [
     "not JSON", '{"matches": []}', '"flood"', "null", '[1]', '[true]',
     '[{}]', '["unknown"]', 'Here are the matches: ["flood"]', '["flood"',
 ])
-def test_invalid_model_output(categories, monkeypatch, output):
+@pytest.mark.parametrize("function", [
+    workflows.categorize_risks, workflows.categorize_reach, workflows.categorize_service,
+])
+def test_invalid_model_output(categories, monkeypatch, output, function):
     monkeypatch.setattr(workflows, "generate_text", Mock(return_value=output))
     with pytest.raises(workflows.WorkflowError) as error:
-        workflows.categorize_risks("Event", object(), categories)
+        function("Event", object(), categories)
+    assert error.value.status_code == 502
+
+
+def test_registered_workflows_have_separate_prompts_and_categories(monkeypatch):
+    generator = Mock(return_value="[]")
+    monkeypatch.setattr(workflows, "generate_text", generator)
+    categories = workflows.load_workflow_categories()
+    assert set(categories) == {"risks", "reach", "service"}
+    runtime = object()
+    assert workflows.run_workflows("Event", runtime, categories) == {
+        "risks": [], "reach": [], "service": [],
+    }
+    assert generator.call_count == 3
+    prompts = set()
+    for call, (name, options_key) in zip(generator.call_args_list, [
+        ("risks", "riskområden"), ("reach", "räckviddsnivåer"), ("service", "verksamheter"),
+    ]):
+        messages, actual_runtime = call.args
+        assert actual_runtime is runtime
+        prompts.add(messages[0]["content"])
+        payload = json.loads(messages[1]["content"])
+        assert {item["ID"] for item in payload[options_key]} == {
+            category.ID for category in categories[name]
+        }
+        assert all(set(item) == {"ID", "description"} for item in payload[options_key])
+    assert len(prompts) == 3
+
+
+@pytest.mark.parametrize("function,wrong_id", [
+    (workflows.categorize_reach, "vatten_va"),
+    (workflows.categorize_service, "2._lokalt"),
+])
+def test_ids_from_other_workflow_are_rejected(monkeypatch, function, wrong_id):
+    monkeypatch.setattr(workflows, "generate_text", Mock(return_value=json.dumps([wrong_id])))
+    name = "reach" if function is workflows.categorize_reach else "service"
+    categories = workflows.load_workflow_categories()[name]
+    with pytest.raises(workflows.WorkflowError) as error:
+        function("Event", object(), categories)
     assert error.value.status_code == 502
 
 
