@@ -7,12 +7,14 @@ requires-python = ">=3.10"
 dependencies = [
     "fastapi[standard]>=0.142.2",
     "pydantic>=2.13.5",
-    "transformers>=4.44,<5",
+    "python-dotenv>=1.0",
+    "transformers>=5.7,<6",
+    "pillow>=10",
 ]
 
 [project.optional-dependencies]
-cpu = ["torch>=2.6"]
-cuda = ["torch>=2.6"]
+cpu = ["torch>=2.6", "torchvision>=0.21"]
+cuda = ["torch>=2.6", "torchvision>=0.21"]
 
 [dependency-groups]
 dev = ["pytest>=8,<10", "httpx>=0.28"]
@@ -22,6 +24,10 @@ conflicts = [[{ extra = "cpu" }, { extra = "cuda" }]]
 
 [tool.uv.sources]
 torch = [
+    { index = "pytorch-cpu", extra = "cpu" },
+    { index = "pytorch-cuda", extra = "cuda" },
+]
+torchvision = [
     { index = "pytorch-cpu", extra = "cpu" },
     { index = "pytorch-cuda", extra = "cuda" },
 ]

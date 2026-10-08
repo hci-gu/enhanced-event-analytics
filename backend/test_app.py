@@ -4,10 +4,14 @@ import pytest
 from fastapi.testclient import TestClient
 
 import app as backend
+import workflows
 
 
 @pytest.fixture
 def loaders(monkeypatch):
+    monkeypatch.setattr(backend, "load_dotenv", Mock())
+    config = Mock(model_type="bert")
+    monkeypatch.setattr(backend.AutoConfig, "from_pretrained", Mock(return_value=config))
     monkeypatch.setenv("MODEL_ID", "test/model")
     monkeypatch.setenv("MODEL_DEVICE", "auto")
     monkeypatch.setattr(backend.torch.cuda, "is_available", Mock(return_value=False))
@@ -21,30 +25,110 @@ def loaders(monkeypatch):
 
 
 def test_requests_share_runtime_and_cleanup(loaders, monkeypatch):
-    runner = Mock(return_value={})
+    runner = Mock(return_value={"risks": []})
     monkeypatch.setattr(backend, "run_workflows", runner)
     with TestClient(backend.app) as client:
         runtime = backend.app.state.runtime
+        health = client.get("/health")
+        assert health.status_code == 200
+        assert health.json() == {
+            "status": "ok",
+            "model_id": "test/model",
+            "device": "cpu",
+            "model_loaded": True,
+        }
+        runner.assert_not_called()
         for _ in range(2):
             response = client.post("/analyze-event", json={"text": "  Swedish event  "})
             assert response.status_code == 200
-            assert response.json() == {"status": "not_implemented", "results": {}}
+            assert response.json() == {"status": "ok", "results": {"risks": []}}
         assert runner.call_count == 2
-        runner.assert_called_with("Swedish event", runtime)
+        runner.assert_called_with("Swedish event", runtime, backend.app.state.workflow_categories)
         loaders[0].assert_called_once_with("test/model")
-        loaders[1].assert_called_once_with("test/model")
+        loaders[1].assert_called_once_with(
+            "test/model", config=backend.AutoConfig.from_pretrained.return_value
+        )
         assert runtime.tokenizer is loaders[0].return_value
         assert runtime.model is loaders[1].return_value
         runtime.model.to.assert_called_once_with("cpu")
         runtime.model.eval.assert_called_once_with()
     assert not hasattr(backend.app.state, "runtime")
+    assert not hasattr(backend.app.state, "workflow_categories")
 
 
-def test_scaffold_response(loaders):
+def test_unsupported_model_response(loaders):
     with TestClient(backend.app) as client:
         response = client.post("/analyze-event", json={"text": "Event"})
-    assert response.status_code == 200
-    assert response.json() == {"status": "not_implemented", "results": {}}
+    assert response.status_code == 503
+
+
+@pytest.mark.parametrize("article", ["test-event.txt", "test-event2.txt"])
+def test_article_endpoint_contract(loaders, monkeypatch, article):
+    from pathlib import Path
+
+    generator = Mock(return_value='["översvämningar"]')
+    monkeypatch.setattr(workflows, "generate_text", generator)
+    text = (Path(__file__).parent.parent / "data" / article).read_text(encoding="utf-8")
+    with TestClient(backend.app) as client:
+        runtime = backend.app.state.runtime
+        for _ in range(2):
+            response = client.post("/analyze-event", json={"text": text})
+            assert response.status_code == 200
+            assert response.json() == {
+                "status": "ok",
+                "results": {"risks": [{"ID": "översvämningar", "name": "Översvämningar"}]},
+            }
+            assert backend.app.state.runtime is runtime
+    # This validates the API plumbing, not the article's actual classification.
+    assert generator.call_count == 2
+    loaders[1].assert_called_once()
+
+
+@pytest.mark.parametrize("status", [413, 502, 503])
+def test_workflow_error_response(loaders, monkeypatch, status):
+    monkeypatch.setattr(
+        backend, "run_workflows", Mock(side_effect=workflows.WorkflowError(status, "Workflow error"))
+    )
+    with TestClient(backend.app) as client:
+        response = client.post("/analyze-event", json={"text": "Event"})
+    assert response.status_code == status
+    assert response.json() == {"detail": "Workflow error"}
+
+
+def test_bad_categories_prevent_model_loading(loaders, monkeypatch):
+    monkeypatch.setattr(
+        backend, "load_workflow_categories", Mock(side_effect=RuntimeError("Invalid categories"))
+    )
+    with pytest.raises(RuntimeError, match="Invalid categories"):
+        with TestClient(backend.app):
+            pass
+    loaders[0].assert_not_called()
+    loaders[1].assert_not_called()
+
+
+def test_gemma_generation_loader(loaders, monkeypatch):
+    monkeypatch.setenv("MODEL_ID", "google/gemma-4-E2B-it")
+    config = backend.AutoConfig.from_pretrained.return_value
+    config.model_type = "gemma4"
+    processor = Mock()
+    processor_loader = Mock(return_value=processor)
+    model_loader = Mock(return_value=Mock())
+    monkeypatch.setattr(backend.AutoProcessor, "from_pretrained", processor_loader)
+    monkeypatch.setattr(backend.Gemma4ForConditionalGeneration, "from_pretrained", model_loader)
+    with TestClient(backend.app):
+        runtime = backend.app.state.runtime
+        assert runtime.processor is processor
+        assert runtime.tokenizer is processor.tokenizer
+        assert runtime.model is model_loader.return_value
+        processor_loader.assert_called_once_with("google/gemma-4-E2B-it")
+        model_loader.assert_called_once_with(
+            "google/gemma-4-E2B-it", config=config, dtype="auto"
+        )
+        runtime.model.to.assert_called_once_with("cpu")
+        runtime.model.eval.assert_called_once_with()
+    loaders[0].assert_not_called()
+    loaders[1].assert_not_called()
+    assert not hasattr(backend.app.state, "runtime")
 
 
 @pytest.mark.parametrize("payload", [
