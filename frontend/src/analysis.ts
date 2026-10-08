@@ -5,20 +5,21 @@ export type WorkflowState = WorkflowInfo & {
   results: Match[]
 }
 export type AnalysisState = {
+  analysisId: string | null
   status: 'preparing' | 'running' | 'completed' | 'failed'
   workflows: WorkflowState[]
   completedIds: string[]
   error: string | null
 }
 export type AnalysisEvent =
-  | { type: 'analysis_started'; workflows: WorkflowInfo[] }
+  | { type: 'analysis_started'; analysisId: string; workflows: WorkflowInfo[] }
   | { type: 'workflow_started'; id: string }
   | { type: 'workflow_completed'; id: string; results: Match[] }
   | { type: 'workflow_failed'; id: string | null; message: string; code: number }
   | { type: 'analysis_completed' }
 
 export const initialAnalysis: AnalysisState = {
-  status: 'preparing', workflows: [], completedIds: [], error: null,
+  analysisId: null, status: 'preparing', workflows: [], completedIds: [], error: null,
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -32,14 +33,14 @@ function isText(value: unknown): value is string {
 export function parseAnalysisEvent(type: string, json: string): AnalysisEvent {
   const data: unknown = JSON.parse(json)
   if (!isRecord(data)) throw new Error('Servern skickade ett ogiltigt analysmeddelande.')
-  if (type === 'analysis_started' && Array.isArray(data.workflows)) {
+  if (type === 'analysis_started' && isText(data.analysis_id) && Array.isArray(data.workflows)) {
     const workflows: WorkflowInfo[] = []
     for (const item of data.workflows) {
       if (!isRecord(item) || !isText(item.id) || !isText(item.label)) break
       workflows.push({ id: item.id, label: item.label })
     }
     if (workflows.length === data.workflows.length && new Set(workflows.map((item) => item.id)).size === workflows.length) {
-      return { type, workflows }
+      return { type, analysisId: data.analysis_id, workflows }
     }
   }
   if (type === 'workflow_started' && isText(data.id)) return { type, id: data.id }
@@ -75,7 +76,7 @@ export function advanceAnalysis(state: AnalysisState, event: AnalysisEvent): Ana
   if (event.type === 'analysis_started') {
     if (state.status !== 'preparing') return invalid()
     return {
-      ...initialAnalysis, status: 'running',
+      ...initialAnalysis, analysisId: event.analysisId, status: 'running',
       workflows: event.workflows.map((workflow) => ({ ...workflow, status: 'queued', results: [] })),
     }
   }

@@ -8,13 +8,9 @@
 }
 
 .analysis-screen h1 {
-  margin: 12px 0;
-}
-
-.analysis-message {
-  margin: 0 0 24px;
-  text-align: center;
-  color: var(--primary-color);
+  margin: 12px 0 24px;
+  min-height: 1.25em;
+  font-size: clamp(18px, 2.5vw, 30px);
 }
 
 .analysis-columns {
@@ -99,7 +95,8 @@
   position: relative;
   width: 88px;
   height: 88px;
-  margin: 24px 0 8px;
+  align-self: center;
+  margin: auto 0 48px;
   flex-shrink: 0;
 }
 
@@ -142,16 +139,6 @@
   border-radius: 22px;
   background: var(--results-panel-background);
   box-shadow: 0 8px 24px var(--widget-shadow-color);
-}
-
-.workflow-results-panel h2 {
-  margin: 0 0 20px;
-  font-size: 20px;
-  color: var(--primary-color);
-}
-
-.results-empty {
-  color: var(--workflow-muted-text);
 }
 
 .workflow-result {
@@ -211,7 +198,7 @@
   .analysis-progress {
     width: 56px;
     height: 56px;
-    margin: 8px 0 0;
+    margin: auto 0 0;
     font-size: 14px;
   }
 
@@ -222,8 +209,7 @@
 
 @media (max-height: 500px) {
   .analysis-screen h1 { font-size: 24px; margin: 0 0 8px; }
-  .analysis-message { margin-bottom: 12px; }
-  .analysis-progress { width: 48px; height: 48px; margin: 8px 0 0; font-size: 12px; }
+  .analysis-progress { width: 48px; height: 48px; margin: auto 0 0; font-size: 12px; }
   .workflow-status { padding: 6px 4px; font-size: 18px; }
 }
 

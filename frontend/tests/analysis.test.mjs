@@ -3,16 +3,19 @@ import { test } from 'node:test'
 import { advanceAnalysis, analysisProgress, failAnalysis, initialAnalysis, parseAnalysisEvent, readAnalysisStream } from '../src/analysis.ts'
 
 const workflows = [{ id: 'a', label: 'Första' }, { id: 'b', label: 'Andra' }, { id: 'c', label: 'Tredje' }]
-const started = { type: 'analysis_started', workflows }
+const analysisId = '6e2a1df4-657b-4a75-b899-d42afdc50953'
+const started = { type: 'analysis_started', analysisId, workflows }
 const start = (id) => ({ type: 'workflow_started', id })
 const complete = (id) => ({ type: 'workflow_completed', id, results: [] })
 const encode = (event) => {
-  const { type, ...data } = event
-  return `event: ${type}\r\ndata: ${JSON.stringify(data)}\r\n\r\n`
+  const { type, analysisId, ...data } = event
+  const payload = analysisId ? { ...data, analysis_id: analysisId } : data
+  return `event: ${type}\r\ndata: ${JSON.stringify(payload)}\r\n\r\n`
 }
 
 test('tracks states, completion order, duplicate completion, and terminal progress', () => {
   let state = advanceAnalysis(initialAnalysis, started)
+  assert.equal(state.analysisId, analysisId)
   assert.deepEqual(state.workflows.map((item) => item.status), ['queued', 'queued', 'queued'])
   for (const id of ['b', 'a', 'c']) {
     state = advanceAnalysis(state, start(id))
@@ -24,6 +27,7 @@ test('tracks states, completion order, duplicate completion, and terminal progre
   assert.equal(analysisProgress(state), 100)
   state = advanceAnalysis(state, { type: 'analysis_completed' })
   assert.equal(analysisProgress(state), null)
+  assert.equal(state.analysisId, analysisId)
 })
 
 test('preserves completed results and stops queued workflows after failure', () => {
@@ -33,6 +37,7 @@ test('preserves completed results and stops queued workflows after failure', () 
   state = advanceAnalysis(state, start('b'))
   state = advanceAnalysis(state, { type: 'workflow_failed', id: 'b', code: 502, message: 'Analysen misslyckades' })
   assert.equal(state.status, 'failed')
+  assert.equal(state.analysisId, analysisId)
   assert.deepEqual(state.workflows.map((item) => item.status), ['completed', 'failed', 'skipped'])
   assert.deepEqual(state.completedIds, ['a'])
   assert.equal(analysisProgress(state), 33)
@@ -78,7 +83,7 @@ test('detects early EOF and retains partial results for failure rendering', asyn
 })
 
 test('rejects malformed events, unknown IDs and premature success', () => {
-  for (const json of ['null', '{}', '{"workflows":[{"id":"a"}]}', JSON.stringify({ workflows: [workflows[0], workflows[0]] })]) {
+  for (const json of ['null', '{}', '{"workflows":[{"id":"a"}]}', JSON.stringify({ analysis_id: analysisId, workflows: [workflows[0], workflows[0]] })]) {
     assert.throws(() => parseAnalysisEvent('analysis_started', json), /ogiltigt/)
   }
   const state = advanceAnalysis(initialAnalysis, started)

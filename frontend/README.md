@@ -46,12 +46,15 @@ longer text scrolls inside the textarea. Deleting text shrinks it again.
 
 The backend sends the ordered workflow catalog, starts, results, and a terminal
 success/failure event using the stream contract in `../backend/README.md`.
+The UUID from `analysis_started.analysis_id` is displayed as the analysis title.
+The results panel is initially empty; visible status captions and result headings
+are omitted while screen-reader announcements remain available.
 Queued workflows are muted; the active workflow is bold with a spinner; completed
 workflows are bold with a check. Completed result rows appear in completion order
 and expand to show category names, or “Inga kategorier matchade.” The results panel
 scrolls internally without jumping when a new result arrives.
 
-The progress ring below the left-hand list counts completed workflows. It disappears
+The progress ring near the bottom center of the left column counts completed workflows. It disappears
 only after terminal success. Failures retain partial results and a static progress
 ring; the active workflow fails and remaining workflows are marked “Ej körd.”
 Stream interruption or invalid messages display an error without rerunning inference.
@@ -61,9 +64,11 @@ New status/result colors are customizable in `src/colors.css`.
 
 ### Future frontend milestones
 
-1. Add a sidebar to switch between different event analyses, with a defined storage
+1. Make the LLM's first workflow generate a short event title. Display that title
+   instead of the UUID, keeping the backend UUID as the stable analysis reference.
+2. Add a sidebar to switch between different event analyses, with a defined storage
    and restoration strategy for their state/results.
-2. Add a report/summary page that renders workflow findings within the event text.
+3. Add a report/summary page that renders workflow findings within the event text.
 
 These milestones, saved analysis history, and search results are not implemented.
 

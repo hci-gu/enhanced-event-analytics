@@ -11,7 +11,7 @@ test('development and preview proxy VITE_API_URL and stream progress without buf
     for await (const chunk of request) body += chunk
     requests.push({ path: request.url, method: request.method, body })
     response.writeHead(200, { 'Content-Type': 'text/event-stream' })
-    response.write('event: analysis_started\ndata: {"workflows":[]}\n\n')
+    response.write('event: analysis_started\ndata: {"analysis_id":"6e2a1df4-657b-4a75-b899-d42afdc50953","workflows":[]}\n\n')
     finishResponse = () => response.end('event: analysis_completed\ndata: {}\n\n')
   })
   await new Promise((resolve) => backend.listen(0, '127.0.0.1', resolve))

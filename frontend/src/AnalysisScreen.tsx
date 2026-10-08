@@ -20,8 +20,10 @@ export default function AnalysisScreen({ analysis }: { analysis: AnalysisState }
 
   return (
     <section className="analysis-screen" aria-labelledby="analysis-title">
-      <h1 id="analysis-title" ref={headingRef} tabIndex={-1}>Händelseanalys</h1>
-      <p className="analysis-message" role="status" aria-live="polite">{message}</p>
+      <h1 id="analysis-title" ref={headingRef} tabIndex={-1}>
+        {analysis.analysisId ?? <span className="visually-hidden">Händelseanalys</span>}
+      </h1>
+      <p className="visually-hidden" role="status" aria-live="polite">{message}</p>
       <div className="analysis-columns">
         <div className="workflow-status-panel">
           <ol className="workflow-status-list" aria-label="Analysens arbetsflöden">
@@ -48,8 +50,7 @@ export default function AnalysisScreen({ analysis }: { analysis: AnalysisState }
           )}
         </div>
         <section className="workflow-results-panel" aria-labelledby="results-title" tabIndex={0}>
-          <h2 id="results-title">Klara resultat</h2>
-          {analysis.completedIds.length === 0 && <p className="results-empty">Inga klara resultat ännu.</p>}
+          <h2 id="results-title" className="visually-hidden">Klara resultat</h2>
           {analysis.completedIds.map((id) => {
             const workflow = analysis.workflows.find((item) => item.id === id)!
             return (

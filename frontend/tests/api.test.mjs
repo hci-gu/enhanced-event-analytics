@@ -43,7 +43,8 @@ function event(type, data) {
   return `event: ${type}\ndata: ${JSON.stringify(data)}\n\n`
 }
 
-const success = event('analysis_started', { workflows: [{ id: 'risks', label: 'Riskområden' }] }) +
+const analysisId = '6e2a1df4-657b-4a75-b899-d42afdc50953'
+const success = event('analysis_started', { analysis_id: analysisId, workflows: [{ id: 'risks', label: 'Riskområden' }] }) +
   event('workflow_started', { id: 'risks' }) +
   event('workflow_completed', { id: 'risks', results: [{ ID: 'flood', name: 'Översvämningar' }] }) +
   event('analysis_completed', {})
@@ -63,6 +64,7 @@ test('posts trimmed text and streams actual results', async (t) => {
   assert.deepEqual(JSON.parse(options.body), { text: 'Händelsetext' })
   assert.deepEqual(states.map((state) => state.status), ['running', 'running', 'running', 'completed'])
   assert.equal(states.at(-1).workflows[0].results[0].name, 'Översvämningar')
+  assert.equal(states.at(-1).analysisId, analysisId)
 })
 
 test('does not send whitespace-only input', async (t) => {

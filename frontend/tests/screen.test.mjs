@@ -17,13 +17,17 @@ for (const specifier of ['react/jsx-runtime', 'react', './analysis']) {
 }
 const { default: AnalysisScreen } = await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`)
 const render = (analysis) => renderToStaticMarkup(createElement(AnalysisScreen, { analysis }))
-const start = { type: 'analysis_started', workflows: [{ id: 'a', label: 'Riskområden' }, { id: 'b', label: 'Räckvidd' }] }
+const analysisId = '6e2a1df4-657b-4a75-b899-d42afdc50953'
+const start = { type: 'analysis_started', analysisId, workflows: [{ id: 'a', label: 'Riskområden' }, { id: 'b', label: 'Räckvidd' }] }
 
 test('screen renders preparation, queued labels and an active spinner', () => {
   assert.match(render(initialAnalysis), /Förbereder analysen/)
   let state = advanceAnalysis(initialAnalysis, start)
   state = advanceAnalysis(state, { type: 'workflow_started', id: 'a' })
   const html = render(state)
+  assert.match(html, new RegExp(`<h1[^>]*>${analysisId}</h1>`))
+  assert.doesNotMatch(html, /Inga klara resultat ännu|class="analysis-message"|class="results-empty"/)
+  assert.match(html, /<h2[^>]*class="visually-hidden"/)
   assert.match(html, /workflow-spinner/)
   assert.match(html, /Pågår/)
   assert.match(html, /I kö/)
@@ -40,6 +44,7 @@ test('successful screen hides progress and renders collapsed results in completi
   const html = render(state)
   assert.doesNotMatch(html, /role="progressbar"|workflow-spinner|<details[^>]*\bopen\b/)
   assert.match(html, /Analysen är färdig/)
+  assert.match(html, new RegExp(analysisId))
   assert.match(html, /Inga kategorier matchade/)
   assert.match(html, /Översvämningar/)
   assert.ok(html.indexOf('<summary>Räckvidd') < html.indexOf('<summary>Riskområden'))
