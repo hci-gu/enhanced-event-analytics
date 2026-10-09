@@ -68,7 +68,7 @@ def test_article_endpoint_contract(loaders, monkeypatch, article):
     from pathlib import Path
 
     generator = Mock(side_effect=[
-        '["översvämningar"]', '["2._lokalt"]', '["vatten_va"]',
+        '[{"ID":"översvämningar"}]', '[{"ID":"2._lokalt"}]', '[{"ID":"vatten_va"}]',
     ] * 2)
     monkeypatch.setattr(workflows, "generate_text", generator)
     text = (Path(__file__).parent.parent / "data" / article).read_text(encoding="utf-8")

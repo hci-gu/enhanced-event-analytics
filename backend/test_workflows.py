@@ -19,10 +19,10 @@ def categories():
 
 
 @pytest.mark.parametrize("output,expected", [
-    ("[]", []), ('["flood"]', ["flood"]),
-    ('["cold", "flood", "cold"]', ["flood", "cold"]),
-    ('```json\n["flood"]\n```', ["flood"]),
-    ('```\n["flood"]\n```', ["flood"]),
+    ("[]", []), ('[{"ID":"flood"}]', ["flood"]),
+    ('[{"ID":"cold"},{"ID":"flood"},{"ID":"cold"}]', ["flood", "cold"]),
+    ('```json\n[{"ID":"flood"}]\n```', ["flood"]),
+    ('```\n[{"ID":"flood"}]\n```', ["flood"]),
 ])
 @pytest.mark.parametrize("function,options_key,prompt", [
     (workflows.categorize_risks, "riskområden", workflows.RISK_SYSTEM_PROMPT),
@@ -35,7 +35,7 @@ def test_category_matches(categories, monkeypatch, output, expected, function, o
     runtime = object()
     results = function("Event text", runtime, categories)
     assert results == [
-        {"ID": category.ID, "name": category.name}
+        {"ID": category.ID, "name": category.name, "evidence": []}
         for category in categories if category.ID in expected
     ]
     generator.assert_called_once()
@@ -53,7 +53,7 @@ def test_category_matches(categories, monkeypatch, output, expected, function, o
 
 @pytest.mark.parametrize("output", [
     "not JSON", '{"matches": []}', '"flood"', "null", '[1]', '[true]',
-    '[{}]', '["unknown"]', 'Here are the matches: ["flood"]', '["flood"',
+    '[{}]', '[{"ID":"unknown"}]', '["flood"]', 'Here are the matches: []', '["flood"',
 ])
 @pytest.mark.parametrize("function", [
     workflows.categorize_risks, workflows.categorize_reach, workflows.categorize_service,
@@ -95,7 +95,7 @@ def test_registered_workflows_have_separate_prompts_and_categories(monkeypatch):
     (workflows.categorize_service, "2._lokalt"),
 ])
 def test_ids_from_other_workflow_are_rejected(monkeypatch, function, wrong_id):
-    monkeypatch.setattr(workflows, "generate_text", Mock(return_value=json.dumps([wrong_id])))
+    monkeypatch.setattr(workflows, "generate_text", Mock(return_value=json.dumps([{"ID": wrong_id}])))
     name = "reach" if function is workflows.categorize_reach else "service"
     categories = workflows.load_workflow_categories()[name]
     with pytest.raises(workflows.WorkflowError) as error:
@@ -156,7 +156,7 @@ def test_generation_uses_only_new_tokens(runtime):
     def generate(**kwargs):
         assert not torch.is_grad_enabled()
         assert runtime.inference_lock.locked()
-        assert kwargs["max_new_tokens"] == 1024
+        assert kwargs["max_new_tokens"] == 4096
         assert kwargs["do_sample"] is False
         return torch.tensor([[10, 11, 12, 13]])
 
@@ -261,3 +261,26 @@ def test_registry_orchestrates_functions(categories, monkeypatch):
     assert result == {"risks": [], "other": {"summary": "Example"}}
     first.assert_called_once_with("Event", runtime, categories)
     second.assert_called_once_with("Event", runtime, ())
+
+
+@pytest.mark.parametrize("evidence,expected", [
+    (["Vatten stiger", "Vatten stiger", "😀"], ["Vatten stiger", "😀"]),
+    (["vatten stiger", "Vatten  stiger", "", " ", 12, None], []),
+    ("Vatten stiger", []),
+    (None, []),
+])
+def test_verified_evidence(categories, monkeypatch, caplog, evidence, expected):
+    output = [{"ID": "flood", "evidence": evidence}]
+    monkeypatch.setattr(workflows, "generate_text", Mock(return_value=json.dumps(output)))
+    result = workflows.categorize_risks("Vatten stiger 😀\nVatten stiger", object(), categories)
+    assert result == [{"ID": "flood", "name": "Display flood", "evidence": expected}]
+    if not expected:
+        assert "rejected" in caplog.text
+
+
+def test_duplicate_categories_merge_evidence(categories, monkeypatch):
+    monkeypatch.setattr(workflows, "generate_text", Mock(return_value=json.dumps([
+        {"ID": "flood", "evidence": ["Vatten"]},
+        {"ID": "flood", "evidence": ["stiger", "Vatten"]},
+    ])))
+    assert workflows.categorize_risks("Vatten stiger", object(), categories)[0]["evidence"] == ["Vatten", "stiger"]

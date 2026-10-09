@@ -117,3 +117,15 @@ def test_stream_validation_before_inference(loaders, monkeypatch, payload):
         response = client.post("/analyze-event/stream", json=payload)
     assert response.status_code == 422
     runner.assert_not_called()
+
+
+def test_stream_evidence_and_json_compatibility(loaders, monkeypatch):
+    monkeypatch.setattr(workflows, "generate_text", Mock(side_effect=[
+        '[{"ID":"översvämningar","evidence":["Vatten", "påhittat"]}]', '[]', '[]',
+    ] * 2))
+    with TestClient(backend.app) as client:
+        streamed = client.post("/analyze-event/stream", json={"text": "Vatten stiger"})
+        ordinary = client.post("/analyze-event", json={"text": "Vatten stiger"})
+    match = {"ID": "översvämningar", "name": "Översvämningar"}
+    assert parse_events(streamed)[2][1]["results"] == [{**match, "evidence": ["Vatten"]}]
+    assert ordinary.json()["results"]["risks"] == [match]

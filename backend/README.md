@@ -106,7 +106,7 @@ in the event. These instructions guide the model; classification quality still n
 
 The route runs in FastAPI's thread pool. A shared runtime lock serializes prompt
 preparation, generation and decoding for all requests/workflows using `generate_text`.
-Generation uses inference mode, disables thinking and sampling, and allows 1024
+Generation uses inference mode, disables thinking and sampling, and allows 4096
 new tokens. The complete input is capped at 8192 tokens; exceeding it returns HTTP
 413 without truncation. Malformed output, unknown IDs, or inference failures return
 HTTP 502; unsupported runtimes return HTTP 503. Only Gemma's loaded generation
@@ -130,14 +130,23 @@ Each frame is `event: <name>` followed by `data: <JSON>` and a blank line:
 | --- | --- |
 | `analysis_started` | `{ "analysis_id": "<uuid>", "workflows": [{ "id": "risks", "label": "Riskområden" }, ...] }` |
 | `workflow_started` | `{ "id": "risks" }` |
-| `workflow_completed` | `{ "id": "risks", "results": [{ "ID": "...", "name": "..." }] }` |
+| `workflow_completed` | `{ "id": "risks", "results": [{ "ID": "...", "name": "...", "evidence": ["exact supporting quote"] }] }` |
 | `workflow_failed` | `{ "id": "risks", "message": "...", "code": 502 }` |
 | `analysis_completed` | `{}` |
 
 The catalog follows registry order; labels default to the registry key when absent.
 Completed results may contain an empty list. Streaming workflows must return lists
 of matched IDs and display names. Both endpoints share `iter_workflow_events`;
-inference remains serialized by the existing runtime lock. Synchronous stream
+inference remains serialized by the existing runtime lock. Each categorization
+prompt requests objects with category `ID` and an `evidence` array in the same
+model call. The backend validates IDs, resolves names, and deduplicates quotes.
+Only nonblank exact substrings of the trimmed input are retained: no fuzzy
+matching or normalization. Missing, malformed, or unmatched evidence is omitted
+and rejected evidence is logged without discarding the valid category. Empty
+evidence arrays indicate unavailable verified text support. The original JSON
+endpoint excludes evidence to preserve its response contract. These checks verify
+quote presence, not the model's reasoning or classification accuracy.
+Synchronous stream
 iteration runs in Starlette's worker pool, leaving the event loop free.
 
 The stream stops at the first workflow failure; completed results remain usable.
