@@ -32,6 +32,8 @@ Match nearby code: TypeScript uses two spaces, single quotes, and no semicolons;
 
 No automated tests or coverage threshold are configured. Run frontend lint/build and relevant language checks. When adding tests, document their runner; use `*.test.tsx`, `test_*.py`, or `*_test.go`. Use `data/` samples for future analysis smoke checks. Describe manual UI verification.
 
+When implementing features, do not run any tests that require loading a model, including tests whose fixtures or setup load models. Use mocks or model-independent checks instead, and report any model-loading tests that were skipped.
+
 ## Commit & Pull Request Guidelines
 
 History uses descriptive subjects such as `pocketbase setup`; no formal prefix convention exists. Keep commits focused. PRs should explain changes, affected services, verification, and related issues. Include UI screenshots and disclose unrun checks.
