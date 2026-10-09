@@ -13,6 +13,23 @@ const encode = (event) => {
   return `event: ${type}\r\ndata: ${JSON.stringify(payload)}\r\n\r\n`
 }
 
+test('title arrives separately without affecting category progress and survives failure', () => {
+  let state = advanceAnalysis(initialAnalysis, started)
+  assert.equal(state.title, null)
+  const event = parseAnalysisEvent('title_completed', JSON.stringify({ title: 'Vatten stiger' }))
+  state = advanceAnalysis(state, event)
+  assert.equal(state.title, 'Vatten stiger')
+  assert.equal(state.analysisId, analysisId)
+  assert.equal(analysisProgress(state), 0)
+  assert.equal(state.workflows.length, 3)
+  assert.deepEqual(state.completedIds, [])
+  assert.throws(() => advanceAnalysis(state, event), /oväntad ordning/)
+  assert.equal(failAnalysis(state, 'Fel').title, 'Vatten stiger')
+  for (const title of ['', ' ', null, 42]) {
+    assert.throws(() => parseAnalysisEvent('title_completed', JSON.stringify({ title })), /ogiltigt/)
+  }
+})
+
 test('tracks states, completion order, duplicate completion, and terminal progress', () => {
   let state = advanceAnalysis(initialAnalysis, started)
   assert.equal(state.analysisId, analysisId)
@@ -44,7 +61,7 @@ test('preserves completed results and stops queued workflows after failure', () 
 })
 
 test('parses one-byte chunks, split UTF-8, CRLF and comments', async () => {
-  const text = ': heartbeat\r\n\r\n' + [started, start('a'), complete('a'), start('b'), complete('b'),
+  const text = ': heartbeat\r\n\r\n' + [started, { type: 'title_completed', title: 'Vatten stiger' }, start('a'), complete('a'), start('b'), complete('b'),
     start('c'), complete('c'), { type: 'analysis_completed' }].map(encode).join('')
   const bytes = new TextEncoder().encode(text)
   let index = 0
@@ -58,6 +75,7 @@ test('parses one-byte chunks, split UTF-8, CRLF and comments', async () => {
   await readAnalysisStream(stream, (state) => states.push(state))
   assert.equal(states[0].workflows[0].label, 'Första')
   assert.equal(states.at(-1).status, 'completed')
+  assert.equal(states.at(-1).title, 'Vatten stiger')
 })
 
 test('delivers an event without waiting for stream completion', async () => {

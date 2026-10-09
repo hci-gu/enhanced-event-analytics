@@ -16,13 +16,14 @@ export default function AnalysisScreen({ analysis }: { analysis: AnalysisState }
     : analysis.status === 'failed' ? 'Analysen avbröts'
     : activeWorkflow ? `Analys pågår: ${activeWorkflow.label}` : 'Analys pågår'
 
-  useEffect(() => { headingRef.current?.focus() }, [])
+  useEffect(() => { headingRef.current?.focus() }, [analysis.title])
 
   return (
-    <section className="analysis-screen" aria-labelledby="analysis-title">
-      <h1 id="analysis-title" ref={headingRef} tabIndex={-1}>
-        {analysis.analysisId ?? <span className="visually-hidden">Händelseanalys</span>}
-      </h1>
+    <section className="analysis-screen" aria-labelledby={analysis.title ? 'analysis-title' : undefined}
+      aria-label={analysis.title ? undefined : 'Händelseanalys'}>
+      {analysis.title && <h1 id="analysis-title" ref={headingRef} tabIndex={-1}>
+        {analysis.title}
+      </h1>}
       <p className="visually-hidden" role="status" aria-live="polite">{message}</p>
       <div className="analysis-columns">
         <div className="workflow-status-panel">

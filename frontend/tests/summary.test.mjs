@@ -15,14 +15,15 @@ for (const specifier of ['react/jsx-runtime', 'react', './evidence']) {
 }
 const { default: SummaryScreen } = await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`)
 
-test('summary renders UUID, registry order, accessible highlights and evidence fallbacks', () => {
-  const analysis = { analysisId: 'analysis-uuid', status: 'completed', workflows: [
+test('summary renders title, registry order, accessible highlights and evidence fallbacks', () => {
+  const analysis = { analysisId: 'analysis-uuid', title: 'Vatten stiger', status: 'completed', workflows: [
     { id: 'risks', label: 'Riskområden', results: [{ ID: 'flood', name: 'Översvämningar', evidence: ['vatten'] }] },
     { id: 'reach', label: 'Räckvidd', results: [{ ID: 'local', name: 'Lokalt', evidence: [] }] },
     { id: 'service', label: 'Verksamheter', results: [] },
   ], completedIds: ['service', 'reach', 'risks'], error: null }
   const html = renderToStaticMarkup(createElement(SummaryScreen, { analysis, text: '  vatten\n<script>  ' }))
-  assert.match(html, /analysis-uuid/)
+  assert.match(html, /Vatten stiger/)
+  assert.doesNotMatch(html, /analysis-uuid/)
   assert.match(html, /<mark[^>]*role="button"[^>]*tabindex="0"/)
   assert.match(html, /Textstöd: Riskområden: Översvämningar/)
   assert.match(html, /Verifierat textstöd saknas/)

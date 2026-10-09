@@ -6,6 +6,7 @@ export type WorkflowState = WorkflowInfo & {
 }
 export type AnalysisState = {
   analysisId: string | null
+  title: string | null
   status: 'preparing' | 'running' | 'completed' | 'failed'
   workflows: WorkflowState[]
   completedIds: string[]
@@ -13,13 +14,14 @@ export type AnalysisState = {
 }
 export type AnalysisEvent =
   | { type: 'analysis_started'; analysisId: string; workflows: WorkflowInfo[] }
+  | { type: 'title_completed'; title: string }
   | { type: 'workflow_started'; id: string }
   | { type: 'workflow_completed'; id: string; results: Match[] }
   | { type: 'workflow_failed'; id: string | null; message: string; code: number }
   | { type: 'analysis_completed' }
 
 export const initialAnalysis: AnalysisState = {
-  analysisId: null, status: 'preparing', workflows: [], completedIds: [], error: null,
+  analysisId: null, title: null, status: 'preparing', workflows: [], completedIds: [], error: null,
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -44,6 +46,7 @@ export function parseAnalysisEvent(type: string, json: string): AnalysisEvent {
     }
   }
   if (type === 'workflow_started' && isText(data.id)) return { type, id: data.id }
+  if (type === 'title_completed' && isText(data.title)) return { type, title: data.title }
   if (type === 'workflow_completed' && isText(data.id) && Array.isArray(data.results)) {
     const results: Match[] = []
     for (const item of data.results) {
@@ -87,6 +90,10 @@ export function advanceAnalysis(state: AnalysisState, event: AnalysisEvent): Ana
     return failAnalysis(state, event.message)
   }
   if (state.status !== 'running') return invalid()
+  if (event.type === 'title_completed') {
+    if (state.title !== null || state.workflows.some((workflow) => workflow.status !== 'queued')) return invalid()
+    return { ...state, title: event.title }
+  }
   if (event.type === 'analysis_completed') {
     if (state.workflows.some((workflow) => workflow.status !== 'completed')) return invalid()
     return { ...state, status: 'completed' }

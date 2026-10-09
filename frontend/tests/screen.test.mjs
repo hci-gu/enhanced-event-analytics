@@ -25,7 +25,8 @@ test('screen renders preparation, queued labels and an active spinner', () => {
   let state = advanceAnalysis(initialAnalysis, start)
   state = advanceAnalysis(state, { type: 'workflow_started', id: 'a' })
   const html = render(state)
-  assert.match(html, new RegExp(`<h1[^>]*>${analysisId}</h1>`))
+  assert.doesNotMatch(html, /<h1/)
+  assert.doesNotMatch(html, new RegExp(analysisId))
   assert.doesNotMatch(html, /Inga klara resultat ännu|class="analysis-message"|class="results-empty"/)
   assert.match(html, /<h2[^>]*class="visually-hidden"/)
   assert.match(html, /workflow-spinner/)
@@ -36,6 +37,7 @@ test('screen renders preparation, queued labels and an active spinner', () => {
 
 test('successful screen hides progress and renders collapsed results in completion order', () => {
   let state = advanceAnalysis(initialAnalysis, start)
+  state = advanceAnalysis(state, { type: 'title_completed', title: 'Översvämningar påverkar vägar' })
   state = advanceAnalysis(state, { type: 'workflow_started', id: 'b' })
   state = advanceAnalysis(state, { type: 'workflow_completed', id: 'b', results: [] })
   state = advanceAnalysis(state, { type: 'workflow_started', id: 'a' })
@@ -44,7 +46,8 @@ test('successful screen hides progress and renders collapsed results in completi
   const html = render(state)
   assert.doesNotMatch(html, /role="progressbar"|workflow-spinner|<details[^>]*\bopen\b/)
   assert.match(html, /Analysen är färdig/)
-  assert.match(html, new RegExp(analysisId))
+  assert.match(html, /Översvämningar påverkar vägar/)
+  assert.doesNotMatch(html, new RegExp(analysisId))
   assert.match(html, /Inga kategorier matchade/)
   assert.match(html, /Översvämningar/)
   assert.ok(html.indexOf('<summary>Räckvidd') < html.indexOf('<summary>Riskområden'))
@@ -52,11 +55,13 @@ test('successful screen hides progress and renders collapsed results in completi
 
 test('failed screen retains static progress, marks skipped workflows and announces error', () => {
   let state = advanceAnalysis(initialAnalysis, start)
+  state = advanceAnalysis(state, { type: 'title_completed', title: 'Översvämningar påverkar vägar' })
   state = advanceAnalysis(state, { type: 'workflow_started', id: 'a' })
   state = advanceAnalysis(state, { type: 'workflow_failed', id: 'a', code: 502, message: 'Analysen misslyckades' })
   const html = render(state)
   assert.match(html, /role="progressbar"/)
   assert.match(html, /Ej körd/)
   assert.match(html, /role="alert"/)
+  assert.match(html, /Översvämningar påverkar vägar/)
   assert.doesNotMatch(html, /workflow-spinner/)
 })

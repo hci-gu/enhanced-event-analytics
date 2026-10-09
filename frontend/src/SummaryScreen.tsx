@@ -28,7 +28,7 @@ export default function SummaryScreen({ analysis, text }: { analysis: AnalysisSt
       onKeyDown={(event) => {
         if (event.key === 'Escape') dispatch({ type: 'clear' })
       }}>
-      <h1 id="summary-title" ref={heading} tabIndex={-1}>{analysis.analysisId}</h1>
+      <h1 id="summary-title" ref={heading} tabIndex={-1}>{analysis.title}</h1>
       <p className="visually-hidden" role="status">Analysen är färdig. Sammanfattning med markerat textstöd.</p>
       <div className="summary-columns">
         <section className="summary-text" aria-label="Ursprunglig händelsetext" tabIndex={0}>
