@@ -66,6 +66,7 @@ HTTP 200 response:
 ```json
 {
   "status": "ok",
+  "title": "Översvämningar påverkar vattenförsörjningen",
   "results": {
     "risks": [{"ID": "översvämningar", "name": "Översvämningar"}],
     "reach": [{"ID": "2._lokalt", "name": "2. Lokalt"}],
@@ -82,6 +83,15 @@ Persistence is not implemented.
 
 ## Workflows
 
+The fixed `generate_title(text, runtime)` step runs first, outside the category
+registry. Its separate Swedish prompt asks for a factual title of at most eight
+words. It uses the same model and inference lock, deterministic generation and
+input limit, with at most 64 output tokens. Surrounding whitespace and quotes
+are removed, and titles are capped at eight whitespace-separated words. Blank,
+multiline or structured output and inference failures use `Händelseanalys` and
+log a warning without retrying. Input-limit and unsupported-runtime errors still
+stop analysis with 413/503. Title generation start and duration are logged at INFO.
+
 `workflows.py` contains independent workflow functions and a `WORKFLOWS` registry.
 The functions are `categorize_risks`, `categorize_reach`, and `categorize_service`,
 each accepting `(text, runtime, categories)` and using its own Swedish system prompt.
@@ -93,9 +103,10 @@ handles generation and validated ID-to-name mapping. To add a
 workflow, define a function with that signature and register `Workflow(function,
 "category-file.json", "Display label")` under its result key. A function that does not need categories
 can use `Workflow(function)` and receives an empty tuple. Remove an entry to disable
-a workflow. `run_workflows` runs the registered functions in order and collects each
-result under its registry key (`risks`, `reach`, `service`). All three reuse the same
-model instance; there is one model call per workflow, not a separate model per task.
+a workflow. `run_workflows` generates the title first, then runs registered functions
+in order and returns `{title, results}` with category results under their registry
+keys (`risks`, `reach`, `service`). All four steps reuse the same model instance;
+there is one model call per step, not a separate model per task.
 
 Category definitions are validated and loaded once during startup before model
 loading. Missing files, invalid JSON, blank/non-string fields, or duplicate IDs
@@ -113,13 +124,13 @@ HTTP 502; unsupported runtimes return HTTP 503. Only Gemma's loaded generation
 runtime currently supports the workflow; base models can still start and serve health.
 
 The frontend uses the streaming endpoint below. The existing JSON endpoint remains
-available for scripts and other clients with the same response and error contract.
+available for scripts and other clients, with the additional top-level `title` field.
 
 ## Live analysis stream
 
 Both analysis endpoints generate a fresh UUID v4 reference for each validated
 request, available in the `X-Analysis-ID` response header. The JSON endpoint's
-response body is unchanged. References are logged but are not persisted or
+response body includes the title separately from category results. References are logged but are not persisted or
 queryable yet. Stream metadata includes the same UUID as `analysis_id`.
 
 `POST /analyze-event/stream` accepts the same `{ "text": "..." }` payload and
@@ -129,12 +140,18 @@ Each frame is `event: <name>` followed by `data: <JSON>` and a blank line:
 | Event | JSON data |
 | --- | --- |
 | `analysis_started` | `{ "analysis_id": "<uuid>", "workflows": [{ "id": "risks", "label": "Riskområden" }, ...] }` |
+| `title_completed` | `{ "title": "Översvämningar påverkar vattenförsörjningen" }` |
 | `workflow_started` | `{ "id": "risks" }` |
 | `workflow_completed` | `{ "id": "risks", "results": [{ "ID": "...", "name": "...", "evidence": ["exact supporting quote"] }] }` |
 | `workflow_failed` | `{ "id": "risks", "message": "...", "code": 502 }` |
 | `analysis_completed` | `{}` |
 
 The catalog follows registry order; labels default to the registry key when absent.
+After `analysis_started`, title generation runs before any category workflow and
+emits `title_completed`. It is excluded from the catalog and category progress.
+The frontend displays no title or placeholder initially and renders the title
+once received, retaining it if a later workflow fails. UUIDs remain internal
+metadata and are no longer displayed as headings on either screen.
 Completed results may contain an empty list. Streaming workflows must return lists
 of matched IDs and display names. Both endpoints share `iter_workflow_events`;
 inference remains serialized by the existing runtime lock. Each categorization
@@ -165,7 +182,7 @@ the hosting proxy as well. The frontend's `/api` prefix must be stripped.
 ## Verification
 
 ```powershell
-uv run --extra CPU python -m py_compile app.py workflows.py test_app.py test_workflows.py test_stream.py smoke_articles.py
+uv run --extra CPU python -m py_compile app.py workflows.py test_app.py test_workflows.py test_stream.py test_title.py smoke_articles.py
 uv run --extra CPU python -m pytest
 uv lock --check
 ```

@@ -26,7 +26,7 @@ def loaders(monkeypatch):
 
 def test_requests_share_runtime_and_cleanup(loaders, monkeypatch):
     empty_results = {"risks": [], "reach": [], "service": []}
-    runner = Mock(return_value=empty_results)
+    runner = Mock(return_value={"title": "Testhändelse", "results": empty_results})
     monkeypatch.setattr(backend, "run_workflows", runner)
     with TestClient(backend.app) as client:
         runtime = backend.app.state.runtime
@@ -42,7 +42,7 @@ def test_requests_share_runtime_and_cleanup(loaders, monkeypatch):
         for _ in range(2):
             response = client.post("/analyze-event", json={"text": "  Swedish event  "})
             assert response.status_code == 200
-            assert response.json() == {"status": "ok", "results": empty_results}
+            assert response.json() == {"status": "ok", "title": "Testhändelse", "results": empty_results}
         assert runner.call_count == 2
         runner.assert_called_with("Swedish event", runtime, backend.app.state.workflow_categories)
         loaders[0].assert_called_once_with("test/model")
@@ -68,6 +68,7 @@ def test_article_endpoint_contract(loaders, monkeypatch, article):
     from pathlib import Path
 
     generator = Mock(side_effect=[
+        "Testhändelse",
         '[{"ID":"översvämningar"}]', '[{"ID":"2._lokalt"}]', '[{"ID":"vatten_va"}]',
     ] * 2)
     monkeypatch.setattr(workflows, "generate_text", generator)
@@ -79,6 +80,7 @@ def test_article_endpoint_contract(loaders, monkeypatch, article):
             assert response.status_code == 200
             assert response.json() == {
                 "status": "ok",
+                "title": "Testhändelse",
                 "results": {
                     "risks": [{"ID": "översvämningar", "name": "Översvämningar"}],
                     "reach": [{"ID": "2._lokalt", "name": "2. Lokalt"}],
@@ -87,7 +89,7 @@ def test_article_endpoint_contract(loaders, monkeypatch, article):
             }
             assert backend.app.state.runtime is runtime
     # This validates the API plumbing, not the article's actual classification.
-    assert generator.call_count == 6
+    assert generator.call_count == 8
     loaders[1].assert_called_once()
 
 

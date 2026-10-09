@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from threading import Lock
+from time import perf_counter
 from typing import Any, Literal
 from uuid import uuid4
 
@@ -57,6 +58,8 @@ def load_runtime() -> ModelRuntime:
             raise RuntimeError("MODEL_DEVICE=cuda requires an available CUDA device")
         device = "cuda" if cuda_available else "cpu"
 
+    started = perf_counter()
+    logger.info("Model loading started (model_id=%s, device=%s)", model_id, device)
     try:
         config = AutoConfig.from_pretrained(model_id)
         processor = None
@@ -72,7 +75,15 @@ def load_runtime() -> ModelRuntime:
         model.to(device)
         model.eval()
     except Exception as exc:
+        logger.exception(
+            "Model loading failed after %.2fs (model_id=%s, device=%s)",
+            perf_counter() - started, model_id, device,
+        )
         raise RuntimeError(f"Failed to load MODEL_ID={model_id!r} on {device}: {exc}") from exc
+    logger.info(
+        "Model loading finished in %.2fs (model_id=%s, device=%s)",
+        perf_counter() - started, model_id, device,
+    )
     return ModelRuntime(
         tokenizer=tokenizer, model=model, device=device, model_id=model_id, processor=processor
     )
@@ -113,6 +124,7 @@ class AnalyzeEventRequest(BaseModel):
 
 class AnalyzeEventResponse(BaseModel):
     status: Literal["ok"] = "ok"
+    title: str = Field(description="Generated Swedish event title of at most eight words")
     results: dict[str, Any] = Field(
         description="Results keyed by risks, reach and service; each contains matched IDs and display names",
         examples=[{
@@ -127,7 +139,7 @@ class AnalyzeEventResponse(BaseModel):
     "/analyze-event",
     response_model=AnalyzeEventResponse,
     description=(
-        "Categorize event text by risks, reach and services using separate prompts and the shared model. "
+        "Generate a Swedish title, then categorize event text by risks, reach and services using the shared model. "
         "Each workflow returns zero, one, or multiple matches with IDs and display names."
     ),
     responses={
@@ -148,7 +160,7 @@ def analyze_event(payload: AnalyzeEventRequest, request: Request, response: Resp
         raise HTTPException(
             status_code=exc.status_code, detail=str(exc), headers={"X-Analysis-ID": analysis_id}
         ) from exc
-    return AnalyzeEventResponse(results=results)
+    return AnalyzeEventResponse(**results)
 
 
 def encode_event(event: str, data: dict[str, Any]) -> str:

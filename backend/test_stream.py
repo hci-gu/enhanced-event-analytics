@@ -10,6 +10,13 @@ import workflows
 from test_app import loaders
 
 
+@pytest.fixture(autouse=True)
+def title_generator(monkeypatch):
+    generator = Mock(return_value="Testhändelse")
+    monkeypatch.setattr(workflows, "generate_title", generator)
+    return generator
+
+
 def parse_events(response):
     return [
         (lines[0].removeprefix("event: "), json.loads(lines[1].removeprefix("data: ")))
@@ -29,6 +36,8 @@ def test_iterator_delivers_progress_before_running_next_workflow(monkeypatch):
     assert next(iterator) == ("analysis_started", {"workflows": [
         {"id": "first", "label": "Första"}, {"id": "second", "label": "Andra"},
     ]})
+    first.assert_not_called()
+    assert next(iterator) == ("title_completed", {"title": "Testhändelse"})
     first.assert_not_called()
     assert next(iterator) == ("workflow_started", {"id": "first"})
     first.assert_not_called()
@@ -59,10 +68,11 @@ def test_stream_endpoint_contract_and_existing_json_endpoint(loaders, monkeypatc
         {"id": "reach", "label": "Räckvidd"},
         {"id": "service", "label": "Verksamheter"},
     ]})
-    assert [name for name, _ in events] == ["analysis_started"] + [
+    assert events[1] == ("title_completed", {"title": "Testhändelse"})
+    assert [name for name, _ in events] == ["analysis_started", "title_completed"] + [
         "workflow_started", "workflow_completed",
     ] * 3 + ["analysis_completed"]
-    assert ordinary.json() == {"status": "ok", "results": {"risks": [], "reach": [], "service": []}}
+    assert ordinary.json() == {"status": "ok", "title": "Testhändelse", "results": {"risks": [], "reach": [], "service": []}}
     assert UUID(ordinary.headers["x-analysis-id"]).version == 4
     assert ordinary.headers["x-analysis-id"] != analysis_id
 
@@ -98,7 +108,8 @@ def test_failure_preserves_results_and_stops_execution(loaders, monkeypatch, err
         response = client.post("/analyze-event/stream", json={"text": "Text"})
     events = parse_events(response)
     assert events[0][1]["analysis_id"] == response.headers["x-analysis-id"]
-    assert events[2] == ("workflow_completed", {
+    assert events[1] == ("title_completed", {"title": "Testhändelse"})
+    assert events[3] == ("workflow_completed", {
         "id": "first", "results": [{"ID": "flood", "name": "Översvämningar"}],
     })
     assert events[-1][0] == "workflow_failed"
@@ -127,5 +138,5 @@ def test_stream_evidence_and_json_compatibility(loaders, monkeypatch):
         streamed = client.post("/analyze-event/stream", json={"text": "Vatten stiger"})
         ordinary = client.post("/analyze-event", json={"text": "Vatten stiger"})
     match = {"ID": "översvämningar", "name": "Översvämningar"}
-    assert parse_events(streamed)[2][1]["results"] == [{**match, "evidence": ["Vatten"]}]
+    assert parse_events(streamed)[3][1]["results"] == [{**match, "evidence": ["Vatten"]}]
     assert ordinary.json()["results"]["risks"] == [match]

@@ -66,17 +66,18 @@ def test_invalid_model_output(categories, monkeypatch, output, function):
 
 
 def test_registered_workflows_have_separate_prompts_and_categories(monkeypatch):
-    generator = Mock(return_value="[]")
+    generator = Mock(side_effect=["Testhändelse", "[]", "[]", "[]"])
     monkeypatch.setattr(workflows, "generate_text", generator)
     categories = workflows.load_workflow_categories()
     assert set(categories) == {"risks", "reach", "service"}
     runtime = object()
     assert workflows.run_workflows("Event", runtime, categories) == {
-        "risks": [], "reach": [], "service": [],
+        "title": "Testhändelse", "results": {"risks": [], "reach": [], "service": []},
     }
-    assert generator.call_count == 3
+    assert generator.call_count == 4
+    assert generator.call_args_list[0].args[0][0]["content"] == workflows.TITLE_SYSTEM_PROMPT
     prompts = set()
-    for call, (name, options_key) in zip(generator.call_args_list, [
+    for call, (name, options_key) in zip(generator.call_args_list[1:], [
         ("risks", "riskområden"), ("reach", "räckviddsnivåer"), ("service", "verksamheter"),
     ]):
         messages, actual_runtime = call.args
@@ -250,6 +251,8 @@ def test_concurrent_generation_is_serialized(runtime):
 
 
 def test_registry_orchestrates_functions(categories, monkeypatch):
+    title = Mock(return_value="Testhändelse")
+    monkeypatch.setattr(workflows, "generate_title", title)
     first = Mock(return_value=[])
     second = Mock(return_value={"summary": "Example"})
     monkeypatch.setattr(workflows, "WORKFLOWS", {
@@ -258,7 +261,8 @@ def test_registry_orchestrates_functions(categories, monkeypatch):
     })
     runtime = object()
     result = workflows.run_workflows("Event", runtime, {"risks": categories, "other": ()})
-    assert result == {"risks": [], "other": {"summary": "Example"}}
+    assert result == {"title": "Testhändelse", "results": {"risks": [], "other": {"summary": "Example"}}}
+    title.assert_called_once_with("Event", runtime)
     first.assert_called_once_with("Event", runtime, categories)
     second.assert_called_once_with("Event", runtime, ())
 
