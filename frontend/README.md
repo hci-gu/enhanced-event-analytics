@@ -58,9 +58,28 @@ The progress ring near the bottom center of the left column counts completed wor
 only after terminal success. Failures retain partial results and a static progress
 ring; the active workflow fails and remaining workflows are marked “Ej körd.”
 Stream interruption or invalid messages display an error without rerunning inference.
-The screen stays open after success or failure, with no back button. State is in
+Successful terminal confirmation opens the evidence-linked summary; failures stay
+on the status screen. Neither screen has a back button. State is in
 memory only: refreshing returns to the homepage. On mobile, status is above results.
 New status/result colors are customizable in `src/colors.css`.
+
+## Evidence-linked summary
+
+The summary keeps the UUID title, displays the original input unchanged on the
+left, and shows expandable workflows in backend registry order on the right.
+Each pane scrolls internally; mobile stacks text above results.
+Verified supporting quotes are highlighted at every exact occurrence. Overlapping
+passages retain all category/workflow links and display workflow colors in bands.
+Edit `--evidence-risks-color`, `--evidence-reach-color`, `--evidence-service-color`,
+and `--evidence-fallback-color` in `src/colors.css` to customize them.
+
+Hover or focus a passage to emphasize its workflows; hover or focus a workflow
+to emphasize its passages. Click/tap either to pin selection; select it again or
+press Escape to clear. Enter/Space selects keyboard-focused passages. Temporary
+hover/focus takes precedence and leaving restores the pinned selection. Workflow
+rows still expand normally. Categories with no verified quotes display
+“Verifierat textstöd saknas.” Quotes are model-selected support: exact presence is
+validated, but their reasoning and classification quality still need review.
 
 ### Future frontend milestones
 
@@ -68,9 +87,8 @@ New status/result colors are customizable in `src/colors.css`.
    instead of the UUID, keeping the backend UUID as the stable analysis reference.
 2. Add a sidebar to switch between different event analyses, with a defined storage
    and restoration strategy for their state/results.
-3. Add a report/summary page that renders workflow findings within the event text.
-
-These milestones, saved analysis history, and search results are not implemented.
+The evidence-linked summary milestone is implemented. Title generation, sidebar
+navigation, saved analysis history, and search results remain future work.
 
 ## Verification and production
 
@@ -88,6 +106,9 @@ forwarding against a temporary local mock backend.
 Screen markup tests compile TSX in memory with the existing TypeScript dependency
 and use React server rendering to verify spinner states, collapsed result rows,
 and the removal of the progress ring. They do not replace visual browser checks.
+Evidence tests cover exact text preservation, Unicode, repeated and overlapping
+quotes, stream validation, and selection state. Summary markup tests cover
+accessible highlights, registry order, missing evidence, and safe text rendering.
 Run `pnpm build` before `pnpm test` so preview has a production build to serve.
 
 For manual verification, check desktop/mobile layouts and keyboard focus. Search
@@ -97,6 +118,9 @@ names, empty results, retained partial results after failure, hidden progress af
 success, expandable rows and internal scrolling. Keyboard focus moves to the status
 screen heading; details can be expanded by keyboard. Reduced motion stops spinner
 animation while retaining the active workflow's text status.
+After terminal success, verify summary highlights in both directions, pinned
+selection, Escape, keyboard Enter/Space, original whitespace, and independent
+scrolling. Failures and premature disconnections must not open the summary.
 
 Deploy `dist/` with a same-origin reverse proxy that forwards `/api/*` to the
 backend and strips `/api`. Vite's proxy and `VITE_API_URL` do not configure a static

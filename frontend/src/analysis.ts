@@ -1,4 +1,4 @@
-export type Match = { ID: string; name: string }
+export type Match = { ID: string; name: string; evidence?: string[] }
 export type WorkflowInfo = { id: string; label: string }
 export type WorkflowState = WorkflowInfo & {
   status: 'queued' | 'running' | 'completed' | 'failed' | 'skipped'
@@ -48,7 +48,9 @@ export function parseAnalysisEvent(type: string, json: string): AnalysisEvent {
     const results: Match[] = []
     for (const item of data.results) {
       if (!isRecord(item) || !isText(item.ID) || !isText(item.name)) break
-      results.push({ ID: item.ID, name: item.name })
+      if (item.evidence !== undefined && (!Array.isArray(item.evidence) ||
+        item.evidence.some((quote) => !isText(quote)))) break
+      results.push({ ID: item.ID, name: item.name, evidence: (item.evidence ?? []) as string[] })
     }
     if (results.length === data.results.length) return { type, id: data.id, results }
   }

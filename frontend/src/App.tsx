@@ -3,7 +3,7 @@ import type { FormEvent } from 'react'
 import { checkHealth, streamAnalysis } from './api'
 import { failAnalysis, initialAnalysis } from './analysis'
 import type { AnalysisState } from './analysis'
-import AnalysisScreen from './AnalysisScreen'
+import AnalysisView from './AnalysisView'
 import './App.css'
 
 function App() {
@@ -12,6 +12,7 @@ function App() {
   const [keyboardFocus, setKeyboardFocus] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [analysis, setAnalysis] = useState<AnalysisState | null>(null)
+  const [submittedText, setSubmittedText] = useState('')
   const hasAnalysis = analysis !== null
   const [healthError, setHealthError] = useState<string | null>(null)
   const healthRequest = useRef<Promise<void> | null>(null)
@@ -67,6 +68,7 @@ function App() {
 
     requestPending.current = true
     setIsLoading(true)
+    setSubmittedText(text)
     setAnalysis(initialAnalysis)
     const controller = new AbortController()
     requestController.current = controller
@@ -107,7 +109,7 @@ function App() {
         <p id="health-error-message">{healthError}</p>
         <button type="button" autoFocus onClick={() => setHealthError(null)}>Stäng</button>
       </dialog>
-      {analysis ? <AnalysisScreen analysis={analysis} /> : <>
+      {analysis ? <AnalysisView analysis={analysis} text={submittedText} /> : <>
       <div className="search-row">
         <label className="search-widget">
           <span className="visually-hidden">Sök händelser</span>

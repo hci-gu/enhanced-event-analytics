@@ -39,4 +39,10 @@
   --progress-track-color: #d9ca92;
   --results-panel-background: #fff4c4;
   --result-row-background: #fff8d9;
+  /* Verified evidence: shared by passages and selected workflow rows */
+  --evidence-risks-color: #ffd0d7;
+  --evidence-reach-color: #cbe9ff;
+  --evidence-service-color: #cef0c7;
+  --evidence-fallback-color: #e4d6ff;
+  --evidence-active-border: var(--primary-color);
 }
