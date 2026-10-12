@@ -8,6 +8,7 @@ import PageMenu from './PageMenu'
 import { canSubmit, pageAfterUpdate } from './navigation'
 import type { Page } from './navigation'
 import './App.css'
+import './Design.css'
 
 function App() {
   const [text, setText] = useState('')
@@ -120,6 +121,10 @@ function App() {
         <button type="button" autoFocus onClick={() => setHealthError(null)}>Stäng</button>
       </dialog>
       <header className="app-toolbar">
+      <a className="studio-brand" href="#" onClick={(event) => { event.preventDefault(); setPage('home') }}>
+        <span className="brand-symbol" aria-hidden="true">✳</span>
+        <span>Journal<small>Förstärkt analysförmåga</small></span>
+      </a>
       {page === 'home' && <div className="search-row">
         <label className="search-widget">
           <span className="visually-hidden">Sök händelser</span>
@@ -139,8 +144,14 @@ function App() {
       </header>
       {page !== 'home' && analysis ? <AnalysisView analysis={analysis} text={submittedText} page={page} /> : <>
       <section className="event-section" aria-labelledby="homepage-title">
-        <h1 id="homepage-title">Förstärkt Analysförmåga</h1>
+        <div className="studio-intro">
+          <p className="studio-eyebrow">ANALYSJOURNALEN / UTGÅVA 02</p>
+          <h1 id="homepage-title">Se sammanhanget.<br /><em>Förstå händelsen.</em></h1>
+          <p className="studio-description">En arbetsyta för eftertanke. Från den första uppgiften till en samlad bild av vad som kan påverkas.</p>
+        </div>
+        <div className="studio-workspace">
         <form ref={formRef} onSubmit={analyzeEvent} aria-busy={isLoading}>
+          <div className="composer-heading"><span>Ny händelse</span><span>01 / UNDERLAG</span></div>
           <div className="event-widget">
             <label className="visually-hidden" htmlFor="event-text">Händelsetext</label>
             <textarea
@@ -156,12 +167,27 @@ function App() {
               required
             />
             <div className="event-actions">
+              <span className="character-count" aria-live="polite">{text.length.toLocaleString('sv-SE')} tecken</span>
               <button type="submit" disabled={!text.trim() || isLoading}>
                 {isLoading ? 'Analyserar…' : 'Analysera'}
               </button>
             </div>
           </div>
+          <div className="composer-footer"><span>Textstöd kopplas till varje resultat</span>
+            <button className="sample-button" type="button" disabled={isLoading} onClick={() => setText('Kraftiga regn har orsakat översvämningar i flera bostadsområden. Vägar är avstängda och räddningstjänsten hjälper invånare att lämna sina hem. Kommunen undersöker påverkan på dricksvatten och äldreomsorg.')}>Prova en exempeltext ↗</button>
+          </div>
         </form>
+        <aside className="perspective-panel" aria-labelledby="perspective-title">
+          <p className="studio-eyebrow">ANALYSPERSPEKTIV</p>
+          <h2 id="perspective-title">En samlad bild</h2>
+          <p>Tre perspektiv som hjälper dig att förstå vad händelsen betyder.</p>
+          <div className="perspective-card"><span className="perspective-icon" aria-hidden="true">◎</span><div><h3>Risker & konsekvenser</h3><p>Vad kan inträffa?</p></div></div>
+          <div className="perspective-card"><span className="perspective-icon" aria-hidden="true">↗</span><div><h3>Geografisk räckvidd</h3><p>Vilka områden berörs?</p></div></div>
+          <div className="perspective-card"><span className="perspective-icon" aria-hidden="true">▦</span><div><h3>Berörda verksamheter</h3><p>Vad behöver fungera?</p></div></div>
+          <div className="perspective-note"><span aria-hidden="true">↳</span> Resultaten länkas till din händelsetext.</div>
+        </aside>
+        </div>
+        <footer className="studio-footer"><span>FÖRSTÄRKT ANALYSFÖRMÅGA</span><span>Underlag → Analys → Sammanfattning</span></footer>
       </section>
       </>}
     </main>
