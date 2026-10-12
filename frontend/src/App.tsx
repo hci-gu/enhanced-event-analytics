@@ -4,6 +4,9 @@ import { checkHealth, streamAnalysis } from './api'
 import { failAnalysis, initialAnalysis } from './analysis'
 import type { AnalysisState } from './analysis'
 import AnalysisView from './AnalysisView'
+import PageMenu from './PageMenu'
+import { canSubmit, pageAfterUpdate } from './navigation'
+import type { Page } from './navigation'
 import './App.css'
 
 function App() {
@@ -13,7 +16,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false)
   const [analysis, setAnalysis] = useState<AnalysisState | null>(null)
   const [submittedText, setSubmittedText] = useState('')
-  const hasAnalysis = analysis !== null
+  const [page, setPage] = useState<Page>('home')
   const [healthError, setHealthError] = useState<string | null>(null)
   const healthRequest = useRef<Promise<void> | null>(null)
   const healthDialogRef = useRef<HTMLDialogElement>(null)
@@ -59,23 +62,30 @@ function App() {
     const observer = new ResizeObserver(resizeTextarea)
     observer.observe(form)
     return () => observer.disconnect()
-  }, [text, hasAnalysis])
+  }, [text, page])
 
   async function analyzeEvent(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const trimmedText = text.trim()
-    if (!trimmedText || requestPending.current || hasAnalysis) return
+    if (!canSubmit(trimmedText, requestPending.current)) return
 
     requestPending.current = true
     setIsLoading(true)
     setSubmittedText(text)
     setAnalysis(initialAnalysis)
+    setPage('status')
     const controller = new AbortController()
     requestController.current = controller
 
+    let previousStatus = initialAnalysis.status
     try {
       await streamAnalysis(trimmedText, (state) => {
-        if (!controller.signal.aborted) setAnalysis(state)
+        if (!controller.signal.aborted) {
+          setAnalysis(state)
+          const previous = previousStatus
+          setPage((current) => pageAfterUpdate(current, previous, state.status))
+          previousStatus = state.status
+        }
       }, controller.signal)
     } catch (error) {
       if (!controller.signal.aborted) {
@@ -109,8 +119,8 @@ function App() {
         <p id="health-error-message">{healthError}</p>
         <button type="button" autoFocus onClick={() => setHealthError(null)}>Stäng</button>
       </dialog>
-      {analysis ? <AnalysisView analysis={analysis} text={submittedText} /> : <>
-      <div className="search-row">
+      <header className="app-toolbar">
+      {page === 'home' && <div className="search-row">
         <label className="search-widget">
           <span className="visually-hidden">Sök händelser</span>
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -124,8 +134,10 @@ function App() {
             onChange={(event) => setSearch(event.target.value)}
           />
         </label>
-      </div>
-
+      </div>}
+      <PageMenu page={page} analysis={analysis} onNavigate={setPage} />
+      </header>
+      {page !== 'home' && analysis ? <AnalysisView analysis={analysis} text={submittedText} page={page} /> : <>
       <section className="event-section" aria-labelledby="homepage-title">
         <h1 id="homepage-title">Förstärkt Analysförmåga</h1>
         <form ref={formRef} onSubmit={analyzeEvent} aria-busy={isLoading}>

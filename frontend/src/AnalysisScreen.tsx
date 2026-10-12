@@ -1,11 +1,8 @@
 import { useEffect, useRef } from 'react'
 import { analysisProgress } from './analysis'
 import type { AnalysisState } from './analysis'
+import WorkflowRow from './WorkflowRow'
 import './AnalysisScreen.css'
-
-const stateLabels = {
-  queued: 'I kö', running: 'Pågår', completed: 'Klar', failed: 'Misslyckades', skipped: 'Ej körd',
-}
 
 export default function AnalysisScreen({ analysis }: { analysis: AnalysisState }) {
   const headingRef = useRef<HTMLHeadingElement>(null)
@@ -16,25 +13,20 @@ export default function AnalysisScreen({ analysis }: { analysis: AnalysisState }
     : analysis.status === 'failed' ? 'Analysen avbröts'
     : activeWorkflow ? `Analys pågår: ${activeWorkflow.label}` : 'Analys pågår'
 
-  useEffect(() => { headingRef.current?.focus() }, [analysis.title])
+  useEffect(() => { if (analysis.title) headingRef.current?.focus() }, [analysis.title])
 
   return (
     <section className="analysis-screen" aria-labelledby={analysis.title ? 'analysis-title' : undefined}
       aria-label={analysis.title ? undefined : 'Händelseanalys'}>
-      {analysis.title && <h1 id="analysis-title" ref={headingRef} tabIndex={-1}>
+      <h1 id="analysis-title" ref={headingRef} tabIndex={-1} aria-hidden={!analysis.title}>
         {analysis.title}
-      </h1>}
+      </h1>
       <p className="visually-hidden" role="status" aria-live="polite">{message}</p>
-      <div className="analysis-columns">
-        <div className="workflow-status-panel">
+      <div className="workflow-status-panel">
           <ol className="workflow-status-list" aria-label="Analysens arbetsflöden">
             {analysis.workflows.map((workflow) => (
-              <li key={workflow.id} className={`workflow-status workflow-${workflow.status}`}>
-                <span className={`workflow-symbol ${workflow.status === 'running' ? 'workflow-spinner' : ''}`} aria-hidden="true">
-                  {workflow.status === 'completed' ? '✓' : workflow.status === 'failed' ? '!' : ''}
-                </span>
-                <span>{workflow.label}<span className="visually-hidden">: {stateLabels[workflow.status]}</span></span>
-                {workflow.status === 'skipped' && <small>Ej körd</small>}
+              <li key={workflow.id}>
+                <WorkflowRow workflow={workflow} showTags showStatus />
               </li>
             ))}
           </ol>
@@ -49,21 +41,6 @@ export default function AnalysisScreen({ analysis }: { analysis: AnalysisState }
               <span>{progress}%</span>
             </div>
           )}
-        </div>
-        <section className="workflow-results-panel" aria-labelledby="results-title" tabIndex={0}>
-          <h2 id="results-title" className="visually-hidden">Klara resultat</h2>
-          {analysis.completedIds.map((id) => {
-            const workflow = analysis.workflows.find((item) => item.id === id)!
-            return (
-              <details className="workflow-result" key={id}>
-                <summary>{workflow.label}</summary>
-                {workflow.results.length ? (
-                  <ul>{workflow.results.map((match) => <li key={match.ID}>{match.name}</li>)}</ul>
-                ) : <p>Inga kategorier matchade.</p>}
-              </details>
-            )
-          })}
-        </section>
       </div>
       {analysis.error && <p className="analysis-error" role="alert">{analysis.error}</p>}
     </section>

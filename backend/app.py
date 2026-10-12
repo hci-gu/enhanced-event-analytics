@@ -124,7 +124,7 @@ class AnalyzeEventRequest(BaseModel):
 
 class AnalyzeEventResponse(BaseModel):
     status: Literal["ok"] = "ok"
-    title: str = Field(description="Generated Swedish event title of at most eight words")
+    title: str = Field(description="Generated Swedish event title containing 1–10 words")
     results: dict[str, Any] = Field(
         description="Results keyed by risks, reach and service; each contains matched IDs and display names",
         examples=[{

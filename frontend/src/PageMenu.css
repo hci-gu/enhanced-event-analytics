@@ -1,0 +1,56 @@
+.app-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  min-height: 48px;
+}
+
+.page-menu { position: relative; flex-shrink: 0; z-index: 10; }
+.menu-trigger {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  padding: 10px;
+  border: 2px solid var(--button-border);
+  border-radius: 12px;
+  color: var(--button-text);
+  background: var(--button-background);
+  cursor: pointer;
+}
+.menu-trigger svg { width: 24px; height: 24px; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.menu-trigger:hover { background: var(--button-hover-background); }
+.page-navigation {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  min-width: 200px;
+  padding: 6px;
+  border: 2px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--textbox-background);
+  box-shadow: 0 8px 24px var(--widget-shadow-color);
+}
+.page-navigation button {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-color);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.page-navigation button:hover:not(:disabled), .page-navigation button[aria-current] {
+  background: var(--button-hover-background);
+}
+.page-navigation button:disabled { color: var(--button-disabled-text); cursor: default; opacity: .6; }
+.page-navigation button:focus-visible, .menu-trigger:focus-visible { outline: 3px solid var(--focus-color); outline-offset: 2px; }
+@media (max-width: 600px) {
+  .app-toolbar .search-row { min-width: 0; }
+  .app-toolbar .search-widget { width: min(250px, 100%); }
+}

@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import type { AnalysisState } from './analysis'
 import { activeSelection, evidenceSegments, highlightBands, initialInteraction, interact, workflowColor } from './evidence'
 import type { Selection } from './evidence'
+import WorkflowRow from './WorkflowRow'
 import './AnalysisScreen.css'
 import './SummaryScreen.css'
 
@@ -55,17 +56,13 @@ export default function SummaryScreen({ analysis, text }: { analysis: AnalysisSt
         <section className="summary-results" aria-label="Arbetsflöden och kategorier" tabIndex={0}>
           {analysis.workflows.map((workflow) => {
             const selected = selection?.workflowIds.includes(workflow.id)
-            return <details key={workflow.id} className="workflow-result summary-result" data-active={selected || undefined}
-              onMouseEnter={() => dispatch({ type: 'hover', selection: { workflowIds: [workflow.id] } })}
-              onMouseLeave={() => dispatch({ type: 'hover', selection: null })}
-              style={{ '--workflow-evidence-color': workflowColor(workflow.id) } as CSSProperties}>
-              <summary {...events({ workflowIds: [workflow.id] }, false)}>{workflow.label}</summary>
-              {workflow.results.length ? <ul>{workflow.results.map((match) => <li key={match.ID}>
-                <strong>{match.name}</strong>
-                {match.evidence?.length ? <ul className="evidence-quotes">{match.evidence.map((quote) =>
-                  <li key={quote}><q>{quote}</q></li>)}</ul> : <p>Verifierat textstöd saknas.</p>}
-              </li>)}</ul> : <p>Inga kategorier matchade.</p>}
-            </details>
+            return <WorkflowRow key={workflow.id} workflow={workflow} selected={selected}
+              rowEvents={{
+                onMouseEnter: () => dispatch({ type: 'hover', selection: { workflowIds: [workflow.id] } }),
+                onMouseLeave: () => dispatch({ type: 'hover', selection: null }),
+              }}
+              summaryEvents={events({ workflowIds: [workflow.id] }, false)}
+              style={{ '--workflow-evidence-color': workflowColor(workflow.id) } as CSSProperties} />
           })}
         </section>
       </div>

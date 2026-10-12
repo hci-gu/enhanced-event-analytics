@@ -84,11 +84,11 @@ Persistence is not implemented.
 ## Workflows
 
 The fixed `generate_title(text, runtime)` step runs first, outside the category
-registry. Its separate Swedish prompt asks for a factual title of at most eight
+registry. Its separate Swedish prompt asks for a factual title containing 1–10
 words. It uses the same model and inference lock, deterministic generation and
 input limit, with at most 64 output tokens. Surrounding whitespace and quotes
-are removed, and titles are capped at eight whitespace-separated words. Blank,
-multiline or structured output and inference failures use `Händelseanalys` and
+are removed. Pydantic validates 1–10 whitespace-separated words without truncating
+the title. Overlong, blank, multiline or structured output and inference failures use `Händelseanalys` and
 log a warning without retrying. Input-limit and unsupported-runtime errors still
 stop analysis with 413/503. Title generation start and duration are logged at INFO.
 
@@ -149,7 +149,7 @@ Each frame is `event: <name>` followed by `data: <JSON>` and a blank line:
 The catalog follows registry order; labels default to the registry key when absent.
 After `analysis_started`, title generation runs before any category workflow and
 emits `title_completed`. It is excluded from the catalog and category progress.
-The frontend displays no title or placeholder initially and renders the title
+The frontend reserves an empty heading area initially and renders the title
 once received, retaining it if a later workflow fails. UUIDs remain internal
 metadata and are no longer displayed as headings on either screen.
 Completed results may contain an empty list. Streaming workflows must return lists

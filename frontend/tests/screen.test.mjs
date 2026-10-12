@@ -1,21 +1,11 @@
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
 import { test } from 'node:test'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import ts from 'typescript'
+import { componentUrl } from './tsx.mjs'
 import { advanceAnalysis, initialAnalysis } from '../src/analysis.ts'
 
-// Compile TSX in memory for markup tests; Node supports TS but not JSX natively.
-const source = await readFile(new URL('../src/AnalysisScreen.tsx', import.meta.url), 'utf8')
-let { outputText } = ts.transpileModule(source.replace("import './AnalysisScreen.css'", ''), {
-  compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2023 },
-})
-for (const specifier of ['react/jsx-runtime', 'react', './analysis']) {
-  const resolved = specifier === './analysis' ? new URL('../src/analysis.ts', import.meta.url).href : import.meta.resolve(specifier)
-  outputText = outputText.replaceAll(`'${specifier}'`, `'${resolved}'`).replaceAll(`"${specifier}"`, `"${resolved}"`)
-}
-const { default: AnalysisScreen } = await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`)
+const { default: AnalysisScreen } = await import(await componentUrl('AnalysisScreen'))
 const render = (analysis) => renderToStaticMarkup(createElement(AnalysisScreen, { analysis }))
 const analysisId = '6e2a1df4-657b-4a75-b899-d42afdc50953'
 const start = { type: 'analysis_started', analysisId, workflows: [{ id: 'a', label: 'Riskområden' }, { id: 'b', label: 'Räckvidd' }] }
@@ -25,23 +15,22 @@ test('screen renders preparation, queued labels and an active spinner', () => {
   let state = advanceAnalysis(initialAnalysis, start)
   state = advanceAnalysis(state, { type: 'workflow_started', id: 'a' })
   const html = render(state)
-  assert.doesNotMatch(html, /<h1/)
+  assert.match(html, /<h1[^>]*aria-hidden="true"[^>]*><\/h1>/)
   assert.doesNotMatch(html, new RegExp(analysisId))
   assert.doesNotMatch(html, /Inga klara resultat ännu|class="analysis-message"|class="results-empty"/)
-  assert.match(html, /<h2[^>]*class="visually-hidden"/)
   assert.match(html, /workflow-spinner/)
   assert.match(html, /Pågår/)
   assert.match(html, /I kö/)
   assert.match(html, /role="progressbar"/)
 })
 
-test('successful screen hides progress and renders collapsed results in completion order', () => {
+test('successful screen hides progress and renders collapsed rows in registry order with tags and evidence', () => {
   let state = advanceAnalysis(initialAnalysis, start)
   state = advanceAnalysis(state, { type: 'title_completed', title: 'Översvämningar påverkar vägar' })
   state = advanceAnalysis(state, { type: 'workflow_started', id: 'b' })
   state = advanceAnalysis(state, { type: 'workflow_completed', id: 'b', results: [] })
   state = advanceAnalysis(state, { type: 'workflow_started', id: 'a' })
-  state = advanceAnalysis(state, { type: 'workflow_completed', id: 'a', results: [{ ID: 'flood', name: 'Översvämningar' }] })
+  state = advanceAnalysis(state, { type: 'workflow_completed', id: 'a', results: [{ ID: 'flood', name: 'Översvämningar', evidence: ['Vatten stiger'] }] })
   state = advanceAnalysis(state, { type: 'analysis_completed' })
   const html = render(state)
   assert.doesNotMatch(html, /role="progressbar"|workflow-spinner|<details[^>]*\bopen\b/)
@@ -50,7 +39,9 @@ test('successful screen hides progress and renders collapsed results in completi
   assert.doesNotMatch(html, new RegExp(analysisId))
   assert.match(html, /Inga kategorier matchade/)
   assert.match(html, /Översvämningar/)
-  assert.ok(html.indexOf('<summary>Räckvidd') < html.indexOf('<summary>Riskområden'))
+  assert.ok(html.indexOf('Riskområden') < html.indexOf('Räckvidd'))
+  assert.match(html, /class="workflow-tag">Översvämningar/)
+  assert.match(html, /<q>Vatten stiger<\/q>/)
 })
 
 test('failed screen retains static progress, marks skipped workflows and announces error', () => {
@@ -64,4 +55,5 @@ test('failed screen retains static progress, marks skipped workflows and announc
   assert.match(html, /role="alert"/)
   assert.match(html, /Översvämningar påverkar vägar/)
   assert.doesNotMatch(html, /workflow-spinner/)
+  assert.doesNotMatch(html, /<details/)
 })

@@ -46,26 +46,25 @@ longer text scrolls inside the textarea. Deleting text shrinks it again.
 
 The backend sends the ordered workflow catalog, starts, results, and a terminal
 success/failure event using the stream contract in `../backend/README.md`.
-The UUID from `analysis_started.analysis_id` is displayed as the analysis title.
-The results panel is initially empty; visible status captions and result headings
-are omitted while screen-reader announcements remain available.
-Queued workflows are muted; the active workflow is bold with a spinner; completed
-workflows are bold with a check. Completed result rows appear in completion order
-and expand to show category names, or “Inga kategorier matchade.” The results panel
-scrolls internally without jumping when a new result arrives.
+The heading area starts empty and displays the Swedish title from `title_completed`
+once available. The UUID stays in internal metadata. Workflow rows stay in registry
+order in one scrolling panel. Queued rows are greyed out; the active row has a
+spinner; completed rows have a checkmark and predicted tags. Only completed rows
+expand, showing categories and verified supporting quotes, or “Inga kategorier matchade.”
+Tags wrap without truncation, and the allocated title area prevents layout jumps.
 
-The progress ring near the bottom center of the left column counts completed workflows. It disappears
+The progress ring below the scrolling rows counts completed workflows. It disappears
 only after terminal success. Failures retain partial results and a static progress
 ring; the active workflow fails and remaining workflows are marked “Ej körd.”
 Stream interruption or invalid messages display an error without rerunning inference.
-Successful terminal confirmation opens the evidence-linked summary; failures stay
-on the status screen. Neither screen has a back button. State is in
-memory only: refreshing returns to the homepage. On mobile, status is above results.
+Successful terminal confirmation opens the evidence-linked summary only when
+Status is selected; failures stay on Status. State is in memory only: refreshing
+returns to the homepage. Mobile rows wrap their tags below the workflow label.
 New status/result colors are customizable in `src/colors.css`.
 
 ## Evidence-linked summary
 
-The summary keeps the UUID title, displays the original input unchanged on the
+The summary keeps the generated title, displays the original input unchanged on the
 left, and shows expandable workflows in backend registry order on the right.
 Each pane scrolls internally; mobile stacks text above results.
 Verified supporting quotes are highlighted at every exact occurrence. Overlapping
@@ -81,14 +80,22 @@ rows still expand normally. Categories with no verified quotes display
 “Verifierat textstöd saknas.” Quotes are model-selected support: exact presence is
 validated, but their reasoning and classification quality still need review.
 
+## Navigation
+
+The top-right menu offers Hem, Status and Sammanfattning on every page, beside
+the existing search on Home. Status is disabled until submission; Sammanfattning
+requires successful completion. Returning Home preserves input/results and does
+not interrupt an active stream. New submissions are blocked while processing;
+afterward, submitting another event replaces the previous analysis. Completed
+Status can be revisited without redirecting automatically.
+The dropdown closes after selection, outside click or Escape. Tab, arrow keys,
+Home and End support keyboard navigation, skipping disabled entries.
+
 ### Future frontend milestones
 
-1. Make the LLM's first workflow generate a short event title. Display that title
-   instead of the UUID, keeping the backend UUID as the stable analysis reference.
-2. Add a sidebar to switch between different event analyses, with a defined storage
-   and restoration strategy for their state/results.
-The evidence-linked summary milestone is implemented. Title generation, sidebar
-navigation, saved analysis history, and search results remain future work.
+Title generation, page navigation and the evidence-linked summary are implemented.
+Saved analysis history, navigation between multiple analyses, and search results
+remain future work.
 
 ## Verification and production
 
@@ -98,6 +105,20 @@ pnpm build
 pnpm test
 pnpm preview
 ```
+
+With a locally available Playwright package and Chromium or Edge, run the browser
+smoke check after `pnpm build`:
+
+```powershell
+node tests/browser-smoke.mjs '<path-to-playwright-package>'
+```
+
+It serves the production build on a temporary local port with a mocked streaming
+API. Desktop/mobile checks cover dropdown keyboard/dismissal behavior, retained
+results, completion navigation, replacement submissions, stable title placement,
+tags, quotes, evidence selection and scrolling. Screenshots are written to a
+temporary directory reported by the command. It does not contact the backend or
+load a model.
 
 API tests use Node's built-in test runner and TypeScript support (Node 22.18+).
 They verify request payloads, health checks, fragmented streams, workflow state,
