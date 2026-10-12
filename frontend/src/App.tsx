@@ -122,7 +122,6 @@ function App() {
       </dialog>
       <header className="app-toolbar">
       <a className="studio-brand" href="#" onClick={(event) => { event.preventDefault(); setPage('home') }}>
-        <span className="brand-symbol" aria-hidden="true">✳</span>
         <span>Journal<small>Förstärkt analysförmåga</small></span>
       </a>
       {page === 'home' && <div className="search-row">
@@ -181,10 +180,10 @@ function App() {
           <p className="studio-eyebrow">ANALYSPERSPEKTIV</p>
           <h2 id="perspective-title">En samlad bild</h2>
           <p>Tre perspektiv som hjälper dig att förstå vad händelsen betyder.</p>
-          <div className="perspective-card"><span className="perspective-icon" aria-hidden="true">◎</span><div><h3>Risker & konsekvenser</h3><p>Vad kan inträffa?</p></div></div>
-          <div className="perspective-card"><span className="perspective-icon" aria-hidden="true">↗</span><div><h3>Geografisk räckvidd</h3><p>Vilka områden berörs?</p></div></div>
-          <div className="perspective-card"><span className="perspective-icon" aria-hidden="true">▦</span><div><h3>Berörda verksamheter</h3><p>Vad behöver fungera?</p></div></div>
-          <div className="perspective-note"><span aria-hidden="true">↳</span> Resultaten länkas till din händelsetext.</div>
+          <div className="perspective-card"><div><h3>Risker & konsekvenser</h3><p>Vad kan inträffa?</p></div></div>
+          <div className="perspective-card"><div><h3>Geografisk räckvidd</h3><p>Vilka områden berörs?</p></div></div>
+          <div className="perspective-card"><div><h3>Berörda verksamheter</h3><p>Vad behöver fungera?</p></div></div>
+          <div className="perspective-note">Resultaten länkas till din händelsetext.</div>
         </aside>
         </div>
         <footer className="studio-footer"><span>FÖRSTÄRKT ANALYSFÖRMÅGA</span><span>Underlag → Analys → Sammanfattning</span></footer>

@@ -3,6 +3,8 @@
 Branch: `codex/design-editorial`. Based on `designprototype`.
 Ivory and terracotta editorial.
 
+Selected by the user after comparison. Decorative brand and perspective symbols removed; retain the editorial typography and palette. The canvas draft also removes decorative information/arrow icons and unsupported operational claims.
+
 ## Preview
 From this worktree's `frontend` directory run `pnpm dev --port 5175`.
 Use the existing backend for live analysis. The sample-text button fills the composer; submitting it uses the existing analysis endpoint.
