@@ -3,270 +3,127 @@
   flex-direction: column;
   width: 100%;
   height: 100dvh;
-  padding: 28px 36px;
-  background: var(--page-background);
-  overflow: hidden;
+  overflow-y: auto;
+  background-color: var(--page-background);
+  background-image: linear-gradient(rgb(221 215 202 / 40%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(221 215 202 / 40%) 1px, transparent 1px);
+  background-size: 40px 40px;
 }
-
-.search-row {
-  display: flex;
-  justify-content: flex-end;
-  flex-shrink: 0;
-}
-
+.search-row { min-width: 0; }
 .search-widget {
   display: flex;
   align-items: center;
-  gap: 10px;
-  width: 250px;
+  gap: 12px;
+  width: 240px;
   max-width: 100%;
-  padding: 10px 14px;
-  background: var(--search-background);
-  color: var(--search-text);
-  border: 2px solid var(--border-color);
-  border-radius: 12px;
-  box-shadow: 0 4px 12px var(--widget-shadow-color),
-    0 1px 2px var(--widget-shadow-edge-color);
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--workflow-muted-text);
 }
-
 .search-widget svg {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   flex-shrink: 0;
   stroke: currentColor;
-  stroke-width: 1.8;
+  stroke-width: 1.5;
   stroke-linecap: round;
 }
-
 .search-widget input {
   width: 100%;
   min-width: 0;
+  padding: 0;
   border: 0;
-  background: var(--search-background);
+  background: transparent;
   color: var(--search-text);
+  font-size: 14px;
 }
-
-.search-widget input::placeholder {
-  color: var(--search-placeholder);
-  opacity: 1;
-}
-
-/* Text inputs match :focus-visible even after a mouse click in browsers.
-   Show their outline only when navigating with the keyboard. */
-.search-widget input:focus,
-.event-widget textarea:focus {
-  outline: none;
-}
-
+.search-widget input::placeholder { color: var(--search-placeholder); opacity: 1; }
+.search-widget:focus-within { border-color: var(--focus-color); }
+.search-widget input:focus, .event-widget textarea:focus { outline: none; }
 .homepage[data-keyboard-focus='true'] input:focus-visible,
 .homepage[data-keyboard-focus='true'] textarea:focus-visible {
-  outline: 3px solid var(--focus-color);
+  outline: 2px solid var(--focus-color);
   outline-offset: 4px;
 }
-
 .event-section {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  width: min(100%, 800px);
-  margin: clamp(16px, 8dvh, 96px) auto 0;
-}
-
-.event-section form {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  flex: 1;
-}
-
-h1 {
   flex-shrink: 0;
-  margin: 0 0 44px;
-  color: var(--primary-color);
+  width: min(100%, 896px);
+  margin: 64px auto 0;
+  padding: 48px 48px 64px;
+  animation: editorial-reveal 400ms ease both;
+}
+.event-section h1 {
+  margin: 0 0 64px;
+  font-size: clamp(36px, 5vw, 60px);
   text-align: center;
-  font-size: clamp(28px, 3.5vw, 44px);
-  line-height: 1.25;
-  font-weight: 600;
-  letter-spacing: -0.025em;
-  overflow-wrap: anywhere;
 }
-
+.event-section form { min-width: 0; }
 .event-widget {
-  display: flex;
-  flex-direction: column;
-  flex: 0 1 auto;
-  min-height: 0;
-  max-height: 290px;
-  padding: 16px 20px 10px;
+  padding: 4px;
+  border: 1px solid var(--border-color);
   background: var(--textbox-background);
-  border: 2px solid var(--border-color);
-  border-radius: 22px;
-  box-shadow: 0 8px 24px var(--widget-shadow-color),
-    0 2px 4px var(--widget-shadow-edge-color);
+  box-shadow: 4px 4px 0 var(--border-color);
 }
-
+.event-widget-inner { padding: 24px; border: 1px solid var(--border-color); }
+.field-label { display: block; margin-bottom: 16px; color: var(--workflow-muted-text); }
 .event-widget textarea {
   display: block;
   width: 100%;
-  flex: 0 1 auto;
-  min-height: 0;
-  padding: 4px;
+  min-height: 400px;
+  max-height: 560px;
+  padding: 0;
   resize: none;
   overflow-y: auto;
   border: 0;
-  background: var(--textbox-background);
+  background: transparent;
   color: var(--textbox-text);
-  line-height: 1.6;
+  font-size: 18px;
+  line-height: 1.7;
 }
-
-.event-widget textarea::placeholder {
-  color: var(--textbox-placeholder);
-  opacity: 1;
-}
-
-.event-actions {
-  display: flex;
-  flex-shrink: 0;
-  justify-content: flex-end;
-  margin-top: 6px;
-}
-
-.event-actions button,
-.health-dialog button {
-  min-height: 36px;
-  padding: 6px 18px;
-  border: 2px solid var(--button-border);
-  border-radius: 12px;
+.event-widget textarea::placeholder { color: var(--textbox-placeholder); opacity: 1; }
+.event-actions { display: flex; justify-content: flex-end; margin-top: 32px; }
+.event-actions button, .health-dialog button {
+  min-height: 48px;
+  padding: 16px 48px;
+  border: 1px solid var(--button-border);
   background: var(--button-background);
   color: var(--button-text);
+  font-size: 14px;
   font-weight: 600;
+  letter-spacing: .12em;
+  text-transform: uppercase;
   cursor: pointer;
-  box-shadow: 0 3px 8px var(--widget-shadow-color),
-    0 1px 2px var(--widget-shadow-edge-color);
-  transition: background-color 150ms ease;
+  transition: background-color 180ms ease;
 }
-
-.event-actions button:hover:not(:disabled),
-.health-dialog button:hover {
-  background: var(--button-hover-background);
-}
-
+.event-actions button:hover:not(:disabled), .health-dialog button:hover { background: var(--button-hover-background); }
 .event-actions button:disabled {
+  border-color: var(--border-color);
   background: var(--button-disabled-background);
   color: var(--button-disabled-text);
   cursor: not-allowed;
 }
-
-.feedback {
-  flex-shrink: 0;
-  max-height: 20dvh;
-  overflow-y: auto;
-  margin-top: 16px;
-  color: var(--status-info-text);
-  line-height: 1.5;
-}
-
-.feedback p {
-  margin: 0;
-  padding: 12px 16px;
-  background: var(--status-info-background);
-  border-radius: 12px;
-}
-
-.feedback .feedback-error {
-  color: var(--status-error-text);
-  background: var(--status-error-background);
-}
-
 .health-dialog {
   width: min(440px, calc(100% - 32px));
   max-height: calc(100dvh - 32px);
-  padding: 24px;
-  border: 2px solid var(--border-color);
-  border-radius: 20px;
-  background: var(--status-error-background);
-  color: var(--status-error-text);
-  box-shadow: 0 8px 24px var(--widget-shadow-color);
+  padding: 28px;
+  border: 1px solid var(--border-color);
+  background: var(--textbox-background);
+  color: var(--text-color);
+  box-shadow: 4px 4px 0 var(--border-color);
 }
-
-.health-dialog::backdrop {
-  background: var(--dialog-backdrop-color);
+.health-dialog::backdrop { background: var(--dialog-backdrop-color); }
+.health-dialog h2 { margin: 0 0 12px; font-family: var(--font-heading); font-size: 28px; }
+.health-dialog p { margin: 0 0 24px; line-height: 1.6; color: var(--status-error-text); overflow-wrap: anywhere; }
+.health-dialog button { display: block; margin-left: auto; padding: 12px 24px; }
+@media (max-width: 640px) {
+  .event-section { margin-top: 32px; padding: 32px 24px 48px; }
+  .event-section h1 { margin-bottom: 40px; }
+  .event-widget-inner { padding: 20px; }
+  .event-widget textarea { min-height: 260px; max-height: 400px; font-size: 16px; }
+  .event-actions button { padding: 14px 32px; }
 }
-
-.health-dialog h2 {
-  margin: 0 0 12px;
-  font-size: 22px;
-}
-
-.health-dialog p {
-  margin: 0 0 20px;
-  line-height: 1.5;
-}
-
-.health-dialog button {
-  display: block;
-  margin-left: auto;
-}
-
-@media (max-width: 600px) {
-  .homepage {
-    padding: 20px 16px;
-  }
-
-  .event-section {
-    margin-top: clamp(16px, 6dvh, 48px);
-  }
-
-  h1 {
-    margin-bottom: 28px;
-  }
-
-  .event-widget {
-    padding: 14px 14px 8px;
-    border-radius: 16px;
-  }
-}
-
-@media (max-height: 500px) {
-  .homepage {
-    padding: 12px 16px;
-  }
-
-  .event-section {
-    margin-top: 12px;
-  }
-
-  h1 {
-    margin-bottom: 12px;
-    font-size: 24px;
-  }
-
-  .event-widget {
-    padding: 10px 10px 6px;
-  }
-
-  .event-actions {
-    margin-top: 6px;
-  }
-
-  .event-actions button {
-    min-height: 36px;
-    padding: 6px 16px;
-  }
-
-  .feedback {
-    margin-top: 8px;
-    font-size: 14px;
-  }
-
-  .feedback p {
-    padding: 8px 12px;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .event-actions button {
-    transition: none;
-  }
+@media (max-height: 600px) {
+  .event-section { margin-top: 16px; padding-top: 24px; }
+  .event-section h1 { margin-bottom: 32px; }
+  .event-widget textarea { min-height: 180px; max-height: 300px; }
 }

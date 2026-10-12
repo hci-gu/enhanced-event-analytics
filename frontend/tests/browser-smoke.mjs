@@ -49,10 +49,11 @@ try {
   try { browser = await chromium.launch({ headless: true }) }
   catch { browser = await chromium.launch({ channel: 'msedge', headless: true }) }
   for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
-    const page = await browser.newPage({ viewport })
+    const page = await browser.newPage({ viewport, reducedMotion: 'reduce' })
     const errors = []
     page.on('pageerror', (error) => errors.push(error.message))
     await page.goto(`http://127.0.0.1:${server.address().port}`)
+    await page.screenshot({ path: join(screenshots, `home-${viewport.width}.png`) })
     const menu = page.getByRole('button', { name: 'Sidmeny' })
     await menu.click()
     assert.equal(await page.getByRole('button', { name: 'Status', exact: true }).isDisabled(), true)
@@ -76,6 +77,8 @@ try {
     ] })
     send('workflow_started', { id: 'reach' })
     await page.locator('.workflow-spinner').waitFor()
+    assert.equal(await page.getByLabel('Sök händelser', { exact: true }).count(), 1)
+    assert.equal(await page.getByRole('progressbar').getAttribute('aria-valuenow'), '11')
     assert.equal(await page.locator('.workflow-tag').count(), 2)
     const after = await page.locator('.workflow-status-panel').boundingBox()
     assert.equal(before.y, after.y)
@@ -105,6 +108,7 @@ try {
     await menu.click()
     await page.getByRole('button', { name: 'Sammanfattning', exact: true }).click()
     await page.locator('.summary-screen').waitFor()
+    assert.equal(await page.getByLabel('Sök händelser', { exact: true }).count(), 1)
     const mark = page.locator('mark').first()
     await mark.click()
     assert.equal(await mark.getAttribute('aria-pressed'), 'true')
@@ -132,6 +136,15 @@ try {
     response.end()
     await page.locator('.summary-screen').waitFor()
     assert.equal(await page.getByRole('heading', { name: 'En ny händelse', exact: true }).count(), 1)
+    await page.getByRole('button', { name: 'Ny analys', exact: true }).click()
+    assert.equal(await page.getByLabel('Händelsetext', { exact: true }).inputValue(), '')
+    assert.equal(await page.getByLabel('Händelsetext', { exact: true }).evaluate((element) => element === document.activeElement), true)
+    assert.equal(await page.getByRole('button', { name: 'Analysera', exact: true }).isDisabled(), true)
+    await menu.click()
+    assert.equal(await page.getByRole('button', { name: 'Sammanfattning', exact: true }).isDisabled(), false)
+    await page.keyboard.press('Escape')
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    assert.equal(await page.locator('.event-section').evaluate((element) => getComputedStyle(element).animationName), 'none')
     assert.deepEqual(errors, [])
     await page.close()
   }

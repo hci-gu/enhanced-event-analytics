@@ -7,7 +7,10 @@ TypeScript React homepage with an event textbox, analysis submission, and a
 search input (search results are not implemented). The browser calls
 `POST /api/analyze-event/stream`; the development/preview proxy forwards this to the
 backend's `/analyze-event/stream` using `VITE_API_URL`. Production requires the same proxy
-rewrite. Homepage colors are configurable in `frontend/src/colors.css`.
+rewrite. Shared colors are configurable in `frontend/src/colors.css`.
+All three screens use the approved Editorial design: ivory surfaces, terracotta
+accents, serif headings, thin borders and a persistent header with search and Sidor
+navigation. Crimson Pro and Switzer load from font services with local fallbacks.
 The top-right menu switches between Hem, Status and Sammanfattning. Status is
 available after submission; Sammanfattning requires a successful analysis.
 Navigation preserves the current analysis and any active request. Returning Home
@@ -17,12 +20,14 @@ selected, and completed Status remains accessible through the menu.
 
 Submission immediately opens a status screen with registry-ordered expandable
 workflow rows in one scrolling panel. Queued rows are greyed out, the current row
-shows a spinner and completed rows show a checkmark with predicted tags. Only
+shows a subtle activity pulse and visible status text; completed rows show a checkmark with predicted tags. Only
 completed rows expand, showing matched categories and verified supporting quotes.
-A progress ring below the workflow list disappears on successful completion;
+A thin progress bar and completed/total count below the workflow list disappear on successful completion;
 failures retain partial results and mark unrun workflows. Successful terminal
 confirmation opens a summary showing unchanged original input on the left and
-shared expandable workflow widgets on the right, separated by a divider.
+shared expandable workflow widgets on the right in a second content column.
+Collapsed groups show their category names. Ny analys clears the composer and
+focuses it while retaining completed results in the menu until a new submission.
 Exact supporting quotes highlight all
 occurrences; overlapping passages retain all associations. Hover/focus connects
 passages and workflows in both directions; click/tap pins selection, Escape clears

@@ -12,23 +12,26 @@ export default function WorkflowRow({ workflow, showTags = false, showStatus = f
 }) {
   const completed = workflow.status === 'completed'
   const header = <>
-    <span className="workflow-label">{workflow.label}</span>
-    {showStatus && <>
-      {(workflow.status === 'running' || completed || workflow.status === 'failed') &&
-        <span className={`workflow-symbol ${workflow.status === 'running' ? 'workflow-spinner' : ''}`} aria-hidden="true">
-          {completed ? '✓' : workflow.status === 'failed' ? '!' : ''}
-        </span>}
-      <span className="visually-hidden">: {stateLabels[workflow.status]}</span>
-      {workflow.status === 'skipped' && <small>Ej körd</small>}
-    </>}
-    {showTags && completed && <span className="workflow-tags">
-      {workflow.results.length ? workflow.results.map((match) =>
-        <span className="workflow-tag" key={match.ID}>{match.name}</span>)
-        : <span className="workflow-no-matches">Inga kategorier matchade.</span>}
-    </span>}
-    <span className="workflow-chevron" aria-hidden="true">
+    {showStatus &&
+      <span className={`workflow-symbol ${workflow.status === 'running' ? 'workflow-spinner' : ''}`} aria-hidden="true">
+        {completed ? '✓' : workflow.status === 'failed' ? '!' : ''}
+      </span>
+    }
+    <div className="workflow-heading">
+      <span className="workflow-label">{workflow.label}</span>
+      {showTags && completed && <span className="workflow-tags">
+        {workflow.results.length ? workflow.results.map((match) =>
+          <span className="workflow-tag" key={match.ID}>{match.name}</span>)
+          : <span className="workflow-no-matches">Inga kategorier matchade.</span>}
+      </span>}
+      {!showStatus && <span className="workflow-category-names">
+        {workflow.results.length ? workflow.results.map((match) => match.name).join(', ') : 'Inga kategorier matchade.'}
+      </span>}
+    </div>
+    {showStatus && <span className="workflow-state-text">{stateLabels[workflow.status]}</span>}
+    {completed && <span className="workflow-chevron" aria-hidden="true">
       <svg viewBox="0 0 24 24" fill="none"><path d="m6 9 6 6 6-6" /></svg>
-    </span>
+    </span>}
   </>
 
   const className = `workflow-result workflow-${workflow.status}`
