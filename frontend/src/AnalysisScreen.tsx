@@ -18,30 +18,32 @@ export default function AnalysisScreen({ analysis }: { analysis: AnalysisState }
   return (
     <section className="analysis-screen" aria-labelledby={analysis.title ? 'analysis-title' : undefined}
       aria-label={analysis.title ? undefined : 'Händelseanalys'}>
+      <p className="screen-label">Analysstatus</p>
       <h1 id="analysis-title" ref={headingRef} tabIndex={-1} aria-hidden={!analysis.title}>
         {analysis.title}
       </h1>
       <p className="visually-hidden" role="status" aria-live="polite">{message}</p>
       <div className="workflow-status-panel">
-          <ol className="workflow-status-list" aria-label="Analysens arbetsflöden">
-            {analysis.workflows.map((workflow) => (
-              <li key={workflow.id}>
-                <WorkflowRow workflow={workflow} showTags showStatus />
-              </li>
-            ))}
-          </ol>
-          {progress !== null && (
-            <div className="analysis-progress" role="progressbar" aria-label="Klara arbetsflöden"
-              aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}>
-              <svg viewBox="0 0 100 100" aria-hidden="true">
-                <circle className="progress-track" cx="50" cy="50" r="44" />
-                <circle className="progress-value" cx="50" cy="50" r="44" pathLength="100"
-                  strokeDasharray={`${progress} 100`} />
-              </svg>
-              <span>{progress}%</span>
-            </div>
-          )}
+        <ol className="workflow-status-list" aria-label="Analysens arbetsflöden">
+          {analysis.workflows.map((workflow) => (
+            <li key={workflow.id}>
+              <WorkflowRow workflow={workflow} showTags showStatus />
+            </li>
+          ))}
+        </ol>
       </div>
+      {progress !== null && (
+        <div className="analysis-progress">
+          <div className="progress-caption">
+            <span>Arbetsflöden</span>
+            <span><strong>{analysis.completedIds.length}</strong> av {analysis.workflows.length} klara</span>
+          </div>
+          <div className="progress-track" role="progressbar" aria-label="Klara arbetsflöden"
+            aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}>
+            <div className="progress-value" style={{ width: `${progress}%` }} />
+          </div>
+        </div>
+      )}
       {analysis.error && <p className="analysis-error" role="alert">{analysis.error}</p>}
     </section>
   )

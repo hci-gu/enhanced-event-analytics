@@ -7,7 +7,10 @@ TypeScript React homepage with an event textbox, analysis submission, and a
 search input (search results are not implemented). The browser calls
 `POST /api/analyze-event/stream`; the development/preview proxy forwards this to the
 backend's `/analyze-event/stream` using `VITE_API_URL`. Production requires the same proxy
-rewrite. Homepage colors are configurable in `frontend/src/colors.css`.
+rewrite. Shared colors are configurable in `frontend/src/colors.css`.
+All three screens use the approved Editorial design: ivory surfaces, terracotta
+accents, serif headings, thin borders and a persistent header with search and Sidor
+navigation. Crimson Pro and Switzer load from font services with local fallbacks.
 The top-right menu switches between Hem, Status and Sammanfattning. Status is
 available after submission; Sammanfattning requires a successful analysis.
 Navigation preserves the current analysis and any active request. Returning Home
@@ -17,15 +20,21 @@ selected, and completed Status remains accessible through the menu.
 
 Submission immediately opens a status screen with registry-ordered expandable
 workflow rows in one scrolling panel. Queued rows are greyed out, the current row
-shows a spinner and completed rows show a checkmark with predicted tags. Only
+shows a subtle activity pulse and visible status text; completed rows show a checkmark with predicted tags. Only
 completed rows expand, showing matched categories and verified supporting quotes.
-A progress ring below the workflow list disappears on successful completion;
+A thin progress bar and completed/total count below the workflow list disappear on successful completion;
 failures retain partial results and mark unrun workflows. Successful terminal
 confirmation opens a summary showing unchanged original input on the left and
-shared expandable workflow widgets on the right, separated by a divider.
+shared expandable workflow widgets on the right in a second content column.
+Collapsed groups show their category names. Ny analys clears the composer and
+focuses it while retaining completed results in the menu until a new submission.
 Exact supporting quotes highlight all
-occurrences; overlapping passages retain all associations. Hover/focus connects
-passages and workflows in both directions; click/tap pins selection, Escape clears
+occurrences; overlapping passages retain all associations.
+Each workflow header has an unlabeled highlight switch, enabled by default and
+available while collapsed. Disabled workflows leave other overlapping colors intact.
+Activating a result quote scrolls its first occurrence to roughly 25% down the text
+viewport, within scroll limits, even when its workflow highlights are off.
+Hover/focus connects passages and workflows in both directions; click/tap pins selection, Escape clears
 it. Text/results scroll independently and stack on mobile. State is in memory only.
 The title text is initially absent, with its heading area reserved to keep other
 widgets in place. A background title step replaces the former UUID
@@ -35,15 +44,49 @@ It has no status row or contribution to category progress.
 ## Backend
 FastAPI exposes `POST /analyze-event`, accepting JSON with a non-empty `text`
 string. It trims the text and currently returns
-`{"status":"ok","title":"Händelserubrik","results":{"risks":[],"reach":[],"service":[]}}`.
+`{"status":"ok","title":"Händelserubrik","results":{"risks":[],"reach":[],"service":[],"properties":[],"protection":[]}}`.
 Each workflow's list may contain zero, one, or multiple matches, each with `ID`
 and display `name`. Invalid text returns HTTP 422.
+Successful responses also include `embedding` and `embedding_error` fields.
 
 The lifespan loads a configurable Transformers tokenizer and base model once
 per server process into `app.state.runtime`. `MODEL_ID` selects a Hugging Face
 model or local directory; `MODEL_DEVICE=auto|cpu|cuda` selects its device.
+When CUDA is selected, `from_pretrained()` places the entire LLM directly on
+`cuda:0` using a fixed device map, without a later `.to()` call. The CUDA
+dependency profile includes Accelerate. DEBUG weights timing includes CUDA
+placement and synchronization; CPU retains a separate device-placement stage.
 Each server worker loads its own model. CPU and CUDA 12.8 dependency profiles
 are managed with uv extras; see [backend setup](backend/README.md).
+
+Startup additionally loads text-only `google/embeddinggemma-2` using Transformers
+5.19+, with audio and vision towers disabled, onto the same resolved device as
+the LLM. Both models are required for startup. Embeddings use bfloat16 on
+compatible CUDA hardware, otherwise float32. INFO logs record embedding model
+load start and completion with duration, model ID, device, and dtype. DEBUG logs
+record full/embedded token counts, truncation, embedding duration, and status;
+CUDA timing synchronization is enabled only at DEBUG. Input text and vectors
+are not logged.
+
+`POST /embed-event` accepts the same text payload and returns a normalized
+768-dimensional document embedding with model/task/dimension metadata, token
+counts, and a truncation flag. The document prefix is `title: none | text: `;
+no generated title is needed. Inputs are right-truncated to 8192 tokens including
+prefix and special tokens. Attention-mask-aware mean pooling of projected token
+representations and L2 normalization run in float32. Invalid vectors or inference
+failures return 502. Query and other embedding tasks remain future work.
+
+Both analysis endpoints submit embedding work before title generation to a
+lifespan-managed single-worker executor. Its separate model lock allows overlap
+with LLM inference while serializing embeddings. JSON responses and the existing
+`analysis_completed` stream payload return the vector only at completion, with
+`embedding_error: null`. Embedding failures preserve successful classification
+with `embedding: null` and a structured 502 embedding error. Analysis failures
+retain existing terminal behavior. Queued embedding work is cancelled on failure
+or stream closure; running inference may finish with its result discarded.
+Shutdown waits for active embedding work before releasing the runtimes.
+The frontend accepts but does not retain these additional fields. No text/vector
+persistence, related-event search, clustering, or graph storage is implemented.
 
 `workflows.py` defines independent workflow functions and the `WORKFLOWS` registry.
 A fixed `generate_title` step outside the registry runs before categorization,
@@ -52,10 +95,14 @@ title, strips surrounding quotes/whitespace and validates 1–10 words using Pyd
 without truncation. Overlong titles use the fallback. Generation allows
 64 output tokens. Inference failure or unusable output logs a warning and falls
 back to `Händelseanalys` without retrying; 413/503 errors still stop analysis.
-The risk, reach, and service workflows each use their own Swedish system prompt
+The risk, reach, service, properties, and protection workflows each use their own Swedish system prompt
 and the matching category file in `backend/schemas/`. Each evaluates all of its
 IDs and descriptions in one Gemma generation call, reusing the same processor and
-model instance. The registry runs the workflows in order and combines their results. Definitions
+model instance. Properties selects supported characteristics of the event's
+development; assessment examples guide category selection without adding output
+fields. Protection selects affected or explicitly threatened protection values.
+Both use the existing category and evidence result format. The registry runs
+risks, reach, service, properties, then protection and combines their results. Definitions
 are validated once at startup; returned IDs are validated and mapped to display
 names. Each categorization call also returns supporting quotes; only nonblank exact
 substrings are retained and deduplicated. Invalid evidence is logged and omitted,

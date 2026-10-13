@@ -1,4 +1,4 @@
-# Homepage
+# Editorial analysis workspace
 
 React and TypeScript homepage with Swedish labels. Search accepts text but does
 not submit or display results yet. Analysera sends trimmed event text to the API
@@ -32,15 +32,28 @@ and `pnpm preview` proxy `/api/*` to `VITE_API_URL`, stripping the `/api` prefix
 
 ## Colors and layout
 
-Edit `src/colors.css` to customize all homepage colors. It contains primary,
+The home, status and summary screens implement the approved Superdesign Editorial
+designs: ivory surfaces, terracotta accents, a subtle paper grid, serif headings,
+thin rules and offset card borders. The header and Sidor dropdown remain available
+on every screen. Prototype example data and badges are not included in the app;
+all workflow names, states, categories and evidence come from the analysis stream.
+The application targets PC browsers. Narrow-window rules keep controls usable
+when desktop windows are resized; phone layouts are not a product requirement.
+
+Crimson Pro and Switzer are loaded through Google Fonts and Fontshare CSS imports
+in `src/index.css`. Georgia and system sans fonts are used if those services are
+unavailable. The font URLs contain no event or analysis data.
+
+Edit `src/colors.css` to customize all shared colors. It contains primary,
 page background, text, border, focus and feedback colors, plus separate
 textbox, search, and button colors (including hover and disabled states).
 Some widget colors reference the shared variables; replace those references with
 color values if you want to customize widgets independently.
 Layout styles live in `src/App.css`; global styles live in `src/index.css`.
-The event textbox starts with one line and grows with newlines or wrapped text.
-Its widget is capped at 290px (or the available viewport space on small screens);
-longer text scrolls inside the textarea. Deleting text shrinks it again.
+The event textbox has a generous minimum height and grows with newlines or wrapped
+text up to 560px on desktop (400px on mobile). Longer text scrolls internally.
+The home screen itself scrolls on short viewports so the submit action stays
+reachable. Motion is disabled when the user requests reduced motion.
 
 ## Workflow status screen
 
@@ -49,13 +62,15 @@ success/failure event using the stream contract in `../backend/README.md`.
 The heading area starts empty and displays the Swedish title from `title_completed`
 once available. The UUID stays in internal metadata. Workflow rows stay in registry
 order in one scrolling panel. Queued rows are greyed out; the active row has a
-spinner; completed rows have a checkmark and predicted tags. Only completed rows
+subtle pulsing indicator and a visible Pågår label; completed rows have a checkmark
+and predicted tags. Only completed rows
 expand, showing categories and verified supporting quotes, or “Inga kategorier matchade.”
 Tags wrap without truncation, and the allocated title area prevents layout jumps.
 
-The progress ring below the scrolling rows counts completed workflows. It disappears
+The thin progress bar below the scrolling rows counts completed workflows and
+shows the completed/total count. It disappears
 only after terminal success. Failures retain partial results and a static progress
-ring; the active workflow fails and remaining workflows are marked “Ej körd.”
+bar; the active workflow fails and remaining workflows are marked “Ej körd.”
 Stream interruption or invalid messages display an error without rerunning inference.
 Successful terminal confirmation opens the evidence-linked summary only when
 Status is selected; failures stay on Status. State is in memory only: refreshing
@@ -66,11 +81,31 @@ New status/result colors are customizable in `src/colors.css`.
 
 The summary keeps the generated title, displays the original input unchanged on the
 left, and shows expandable workflows in backend registry order on the right.
+Category names remain visible when result groups are collapsed. Ny analys returns
+to an empty composer while preserving the completed result in the Sidor menu until
+a new submission replaces it.
 Each pane scrolls internally; mobile stacks text above results.
 Verified supporting quotes are highlighted at every exact occurrence. Overlapping
 passages retain all category/workflow links and display workflow colors in bands.
+Each workflow header has an unlabeled highlight slider, on by default and visible even
+when collapsed, to independently show or hide its highlights. Overlapping passages
+retain the colors of enabled workflows. Toggling does not expand/collapse the row.
+The slider has a workflow-specific accessible name for screen readers.
+Click a supporting quote (or activate it with Enter/Space) to scroll its first exact
+occurrence to roughly 25% down the text pane (75% up from the bottom), within the available scroll range.
+Quote navigation also works when that workflow's highlights are hidden and honors
+reduced motion.
 Edit `--evidence-risks-color`, `--evidence-reach-color`, `--evidence-service-color`,
-and `--evidence-fallback-color` in `src/colors.css` to customize them.
+`--evidence-protection-color` (orange for Skyddsvärden), and `--evidence-fallback-color`
+in `src/colors.css` to customize them.
+Each result-group label has a filled dot in its evidence color. Hover, keyboard
+focus and linked evidence selection tint the card with a 45% blend of that color
+over the card surface. The dot remains at full strength.
+
+The Sidor dropdown fades and slides in and out; closed navigation is inert so its
+links cannot receive focus during the closing transition. Completed workflow
+disclosures expand/collapse over 180ms, including when activated by keyboard.
+Both transitions honor reduced motion.
 
 Hover or focus a passage to emphasize its workflows; hover or focus a workflow
 to emphasize its passages. Click/tap either to pin selection; select it again or
@@ -83,7 +118,7 @@ validated, but their reasoning and classification quality still need review.
 ## Navigation
 
 The top-right menu offers Hem, Status and Sammanfattning on every page, beside
-the existing search on Home. Status is disabled until submission; Sammanfattning
+the search on every screen. Status is disabled until submission; Sammanfattning
 requires successful completion. Returning Home preserves input/results and does
 not interrupt an active stream. New submissions are blocked while processing;
 afterward, submitting another event replaces the previous analysis. Completed
@@ -126,7 +161,7 @@ terminal progress, failure handling, and unbuffered development/preview proxy
 forwarding against a temporary local mock backend.
 Screen markup tests compile TSX in memory with the existing TypeScript dependency
 and use React server rendering to verify spinner states, collapsed result rows,
-and the removal of the progress ring. They do not replace visual browser checks.
+and the removal of the progress bar. They do not replace visual browser checks.
 Evidence tests cover exact text preservation, Unicode, repeated and overlapping
 quotes, stream validation, and selection state. Summary markup tests cover
 accessible highlights, registry order, missing evidence, and safe text rendering.
@@ -138,7 +173,8 @@ Analysera. Verify immediate status-screen transition, sequential progress, match
 names, empty results, retained partial results after failure, hidden progress after
 success, expandable rows and internal scrolling. Keyboard focus moves to the status
 screen heading; details can be expanded by keyboard. Reduced motion stops spinner
-animation while retaining the active workflow's text status.
+animation while retaining the active workflow's text status. Verify Ny analys
+clears the composer and leaves completed results accessible through the menu.
 After terminal success, verify summary highlights in both directions, pinned
 selection, Escape, keyboard Enter/Space, original whitespace, and independent
 scrolling. Failures and premature disconnections must not open the summary.

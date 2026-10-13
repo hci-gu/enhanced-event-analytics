@@ -31,7 +31,40 @@ Auto selects CUDA when available and otherwise CPU; explicit CUDA fails startup
 if unavailable. Startup loads `backend/.env` using `python-dotenv`. You can put
 `MODEL_ID` and `MODEL_DEVICE` there instead of setting them in PowerShell.
 Existing process environment variables take precedence over `.env` values.
-Gemma 4 uses Transformers 5.7+ with `AutoProcessor` and
+`LOG_LEVEL` defaults to `INFO` and controls backend and Uvicorn logging from
+application startup onward. Set it in `.env` to `DEBUG`, `INFO`, `WARNING`,
+`ERROR`, or `CRITICAL` (case insensitive), then restart the service. Invalid
+values prevent startup. DEBUG logs report each LLM call's workflow, input/output
+token counts, generation duration, and output tokens per second. Timing covers
+`model.generate()` including prompt prefill, excluding lock waiting, prompt
+preparation, transfers, and decoding; CUDA is synchronized for DEBUG timing.
+Output counts include generated special tokens, before decoding removes them.
+Workflow logs report output validation, available/selected category counts and
+selected IDs, or title fallback. `retries=0` with `output_valid=true` means the
+first attempt passed validation. Each additional category generation increments
+the retry count, and invalid output logs whether the retry limit is exhausted.
+DEBUG does not enable logging for third-party libraries.
+DEBUG also logs loading-stage start, completion/failure, and `duration_seconds`
+for category definitions, device selection, model configuration, processor (Gemma) or tokenizer
+(other models), weights, CPU device placement, and evaluation mode. CUDA models
+load directly onto `cuda:0` with `device_map={"": "cuda:0"}`; there is no separate
+CUDA `device_placement` stage or subsequent `.to()` call. The CUDA weights stage
+is synchronized before its timer finishes. The weights stage includes
+everything inside `from_pretrained()`, including checkpoint reading and model
+construction and CUDA placement. Compare total startup time when benchmarking
+against the previous separate placement stage. INFO retains the overall model-loading duration without stage logs
+or the additional CUDA synchronization. Transformers 5.19 (the locked version)
+already loads weights asynchronously by default; the older
+`HF_ENABLE_PARALLEL_LOADING` flag is not used by that version.
+
+`RETRY_LIMIT` defaults to `1` and must be a non-negative integer. Each category
+workflow may retry malformed JSON or invalid category IDs this many times,
+using the original event/category definitions plus corrective instructions.
+With `1`, two invalid responses return HTTP 502; `0` disables retries. Configure
+it in `.env` and restart. Invalid values prevent model loading. Inference failures,
+input-limit errors, and unsupported models are not retried. Invalid evidence is
+still discarded rather than retried, and the title retains its existing fallback.
+The backend requires Transformers 5.19+ (below 6). Gemma 4 uses `AutoProcessor` and
 `Gemma4ForConditionalGeneration`; the processor is available as
 `app.state.runtime.processor` for chat-template preparation. Its tokenizer is
 also available through `app.state.runtime.tokenizer`. Checkpoints are loaded
@@ -41,10 +74,27 @@ before restarting the service.
 The first startup downloads model/tokenizer files into the Hugging Face cache
 unless a local directory or cached model is used. Loading errors prevent startup.
 
-FastAPI's lifespan loads the tokenizer and model once per server process, moves
-the model to the selected device, and enables evaluation mode. They stay in
+FastAPI's lifespan loads the tokenizer and model once per server process and
+enables evaluation mode. CUDA selection loads the full model directly onto GPU 0
+using Accelerate (included in the CUDA extra). Explicit CPU selection stays on
+CPU even when CUDA is available. They stay in
 `app.state.runtime` until shutdown. Each Uvicorn worker loads its own copy, so
 start with one worker to avoid multiplying RAM/VRAM usage.
+
+Startup also loads `google/embeddinggemma-2` into `app.state.embedding_runtime`
+on the LLM's resolved device. Both audio and vision towers are disabled; only
+text embeddings are supported. It uses bfloat16 on CUDA with native support,
+otherwise float32 (never float16). Both models must load successfully before the
+service starts. The first startup may download both checkpoints. Each worker
+holds both model copies, so account for their combined RAM/VRAM requirements.
+Embedding model load start, completion with elapsed time, and model ID/device/dtype
+are logged at INFO; loading failures include exception details.
+DEBUG embedding logs include `input_tokens`, `embedded_tokens`, `truncated`,
+`embedding_seconds`, and completion/failure status. Token counts include the
+document prefix and special tokens. Timing starts after acquiring the embedding
+lock and covers device transfer, inference, pooling, and float32 normalization;
+it excludes queue time, tokenization, and conversion to a JSON vector. CUDA is
+synchronized around that work only at DEBUG. Text and vectors are never logged.
 
 ## API
 
@@ -54,7 +104,7 @@ Interactive documentation: `http://127.0.0.1:8000/docs`.
 model ID and selected device without running inference. Example:
 
 ```json
-{"status":"ok","model_id":"google/gemma-4-E2B-it","device":"cpu","model_loaded":true}
+{"status":"ok","model_id":"google/gemma-4-E2B-it","device":"cpu","model_loaded":true,"embedding_model_id":"google/embeddinggemma-2","embedding_model_loaded":true}
 ```
 
 ```powershell
@@ -70,7 +120,9 @@ HTTP 200 response:
   "results": {
     "risks": [{"ID": "översvämningar", "name": "Översvämningar"}],
     "reach": [{"ID": "2._lokalt", "name": "2. Lokalt"}],
-    "service": [{"ID": "vatten_va", "name": "Vatten/VA"}]
+    "service": [{"ID": "vatten_va", "name": "Vatten/VA"}],
+    "properties": [{"ID": "varaktighet", "name": "Varaktighet"}],
+    "protection": [{"ID": "samhällets_funktionalitet", "name": "Samhällets funktionalitet"}]
   }
 }
 ```
@@ -78,8 +130,53 @@ HTTP 200 response:
 Text is trimmed; missing, non-string, empty, and whitespace-only values return
 HTTP 422. Each workflow can return zero, one, or multiple matches; no matches
 returns an empty list under that workflow's key. IDs and display names are resolved
-from `schemas/risks.json`, `schemas/reach.json`, and `schemas/service.json`, respectively.
-Persistence is not implemented.
+from `schemas/risks.json`, `schemas/reach.json`, `schemas/service.json`,
+`schemas/properties.json`, and `schemas/protection.json`, respectively.
+Persistence is not implemented. Successful analysis responses additionally
+contain `embedding` and `embedding_error`, described below; the category-only
+example above omits those fields for readability.
+
+## Document embeddings
+
+`POST /embed-event` accepts the same trimmed, nonempty `{ "text": "..." }`
+payload (invalid input returns 422) and returns `{ "status": "ok", "embedding": {...} }`.
+The embedding object contains:
+
+| Field | Value |
+| --- | --- |
+| `vector` | 768 finite floating-point numbers, L2-normalized |
+| `model_id` | `google/embeddinggemma-2` |
+| `task` | `document` |
+| `dimensions` | `768` |
+| `normalized` | `true` |
+| `truncated` | Whether the input was shortened |
+| `input_tokens` | Full token count including prefix and special tokens |
+| `embedded_tokens` | Token count actually embedded, at most 8192 |
+
+The text is prefixed with `title: none | text: ` independently of the generated
+analysis title. Overlong documents are right-truncated, preserving special tokens;
+only the beginning is represented. The model's projected token representations
+are mean-pooled using the attention mask and normalized in float32. Nonfinite,
+zero-norm, or incorrectly sized output and inference failures return HTTP 502.
+The endpoint has no query, similarity, or clustering task selection yet.
+
+Both analysis endpoints start the same embedding helper before title generation.
+A single-worker embedding executor and separate lock serialize embedding calls,
+while allowing embedding and LLM inference to overlap on the same device. This
+can increase device load; overlapping requests do not guarantee faster GPU work.
+Category progress proceeds normally, but successful completion waits for the
+embedding. JSON analysis responses and streaming `analysis_completed` payloads
+contain `embedding` plus `embedding_error: null` on success. If embedding fails,
+analysis results remain successful with `embedding: null` and
+`embedding_error: { "code": 502, "message": "Embedding inference failed" }`.
+Analysis failures retain their existing error behavior. Queued embedding work is
+cancelled when analysis fails or a stream closes; running inference can finish,
+with its result discarded. Shutdown cancels queued work and waits for running
+embedding inference before releasing runtimes.
+
+The frontend accepts these completion fields but does not store or display them.
+Text/vector persistence, search-query embeddings, and related-event retrieval are
+future work. Document similarity quality requires separate evaluation.
 
 ## Workflows
 
@@ -93,19 +190,27 @@ log a warning without retrying. Input-limit and unsupported-runtime errors still
 stop analysis with 413/503. Title generation start and duration are logged at INFO.
 
 `workflows.py` contains independent workflow functions and a `WORKFLOWS` registry.
-The functions are `categorize_risks`, `categorize_reach`, and `categorize_service`,
+The functions are `categorize_risks`, `categorize_reach`, `categorize_service`,
+`categorize_properties`, and `categorize_protection`,
 each accepting `(text, runtime, categories)` and using its own Swedish system prompt.
 Risks evaluates supported risk areas; reach evaluates geographical/organizational
 scope without assuming the user's organization or automatically selecting broader/narrower
 levels. Service evaluates affected functions and those explicitly involved in handling
-the event, avoiding matches based only on a mentioned location. The shared helper
+the event, avoiding matches based only on a mentioned location. Properties selects
+event characteristics that the text provides enough information to assess;
+assessment examples in the schema guide selection and are not separate output
+values. Protection selects affected or explicitly threatened protection values.
+Both return category IDs and display names, with verified evidence in streaming
+responses, using the same format as the existing workflows. The shared helper
 handles generation and validated ID-to-name mapping. To add a
 workflow, define a function with that signature and register `Workflow(function,
 "category-file.json", "Display label")` under its result key. A function that does not need categories
 can use `Workflow(function)` and receives an empty tuple. Remove an entry to disable
 a workflow. `run_workflows` generates the title first, then runs registered functions
 in order and returns `{title, results}` with category results under their registry
-keys (`risks`, `reach`, `service`). All four steps reuse the same model instance;
+keys (`risks`, `reach`, `service`, `properties`, `protection`) in that order.
+The stream labels for the new workflows are `Egenskaper` and `Skyddsvärden`.
+All six steps reuse the same model instance;
 there is one model call per step, not a separate model per task.
 
 Category definitions are validated and loaded once during startup before model
@@ -119,8 +224,9 @@ The route runs in FastAPI's thread pool. A shared runtime lock serializes prompt
 preparation, generation and decoding for all requests/workflows using `generate_text`.
 Generation uses inference mode, disables thinking and sampling, and allows 4096
 new tokens. The complete input is capped at 8192 tokens; exceeding it returns HTTP
-413 without truncation. Malformed output, unknown IDs, or inference failures return
-HTTP 502; unsupported runtimes return HTTP 503. Only Gemma's loaded generation
+413 without truncation. Malformed category output or unknown IDs return HTTP 502
+after exhausting `RETRY_LIMIT`; inference failures return HTTP 502 immediately.
+Unsupported runtimes return HTTP 503. Only Gemma's loaded generation
 runtime currently supports the workflow; base models can still start and serve health.
 
 The frontend uses the streaming endpoint below. The existing JSON endpoint remains
@@ -144,7 +250,7 @@ Each frame is `event: <name>` followed by `data: <JSON>` and a blank line:
 | `workflow_started` | `{ "id": "risks" }` |
 | `workflow_completed` | `{ "id": "risks", "results": [{ "ID": "...", "name": "...", "evidence": ["exact supporting quote"] }] }` |
 | `workflow_failed` | `{ "id": "risks", "message": "...", "code": 502 }` |
-| `analysis_completed` | `{}` |
+| `analysis_completed` | `{ "embedding": { ... }, "embedding_error": null }` (or a null embedding and structured error) |
 
 The catalog follows registry order; labels default to the registry key when absent.
 After `analysis_started`, title generation runs before any category workflow and
@@ -154,7 +260,8 @@ once received, retaining it if a later workflow fails. UUIDs remain internal
 metadata and are no longer displayed as headings on either screen.
 Completed results may contain an empty list. Streaming workflows must return lists
 of matched IDs and display names. Both endpoints share `iter_workflow_events`;
-inference remains serialized by the existing runtime lock. Each categorization
+LLM inference remains serialized by the existing runtime lock; document embedding
+uses its own runtime and lock. Each categorization
 prompt requests objects with category `ID` and an `evidence` array in the same
 model call. The backend validates IDs, resolves names, and deduplicates quotes.
 Only nonblank exact substrings of the trimmed input are retained: no fuzzy
@@ -171,7 +278,7 @@ After response headers are sent, errors are terminal `workflow_failed` events
 inside HTTP 200, not changed HTTP statuses. The ID can be null for an error before
 a workflow starts. Unexpected exceptions send a safe message; details are logged
 server-side. Clients must treat EOF without a terminal event as interruption.
-There are no stored jobs or automatic resume/retry; an in-flight model call cannot
+There are no stored jobs or automatic job resume/retry; an in-flight model call cannot
 be interrupted immediately when a client disconnects.
 
 Reverse proxies must disable response buffering and caching for this endpoint
@@ -182,12 +289,14 @@ the hosting proxy as well. The frontend's `/api` prefix must be stripped.
 ## Verification
 
 ```powershell
-uv run --extra CPU python -m py_compile app.py workflows.py test_app.py test_workflows.py test_stream.py test_title.py smoke_articles.py
+uv run --extra CPU python -m py_compile app.py workflows.py embeddings.py test_app.py test_workflows.py test_stream.py test_title.py test_embeddings.py smoke_articles.py
 uv run --extra CPU python -m pytest
 uv lock --check
 ```
 
-Tests mock model loading and do not download model weights or require a GPU.
+Tests mock both model loading and inference and do not download model weights or require a GPU.
+Embedding tests cover text-only loading, device/dtype selection, truncation,
+pooling/normalization, logging, concurrent analysis, failures, and cleanup.
 They include both `data/` articles to verify endpoint plumbing with mocked outputs;
 those checks do not establish article classification accuracy.
 
@@ -199,9 +308,11 @@ uv run --extra CPU python smoke_articles.py
 
 This sends both articles to the running backend, reusing its resident model rather
 than loading a second copy. It prints matched IDs/names and checks the response
-contract for all three workflows and unchanged health metadata. Review the flooding article for
+contract for all five workflows and unchanged health metadata. Review the flooding article for
 `Översvämningar` and `Vattenbrist och torka`; check that the suspicious-object article
 accounts for the later finding that the object was not dangerous, without inventing
 an explosion or terrorism. Also review the reach levels and whether service matches
-are supported by actual effects or response activities. Exact matches are not asserted because quality needs
+are supported by actual effects or response activities. Review whether property
+matches have enough information for assessment and protection matches describe
+affected or explicitly threatened values. Exact matches are not asserted because quality needs
 manual review. A request can take up to five minutes on CPU.

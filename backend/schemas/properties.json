@@ -1,0 +1,77 @@
+[
+  {
+    "ID": "riktning",
+    "name": "Riktning",
+    "description": "Om situationen förbättras, är stabil eller försämras. Exempel på bedömning: Förbättras / stabil / försämras"
+  },
+  {
+    "ID": "tempo",
+    "name": "Tempo",
+    "description": "Hur snabbt förändringen sker. Exempel på bedömning: Långsam / successiv / snabb / accelererande"
+  },
+  {
+    "ID": "intensitet",
+    "name": "Intensitet",
+    "description": "Om händelsens styrka eller konsekvenser ökar eller minskar. Exempel på bedömning: Avtagande / konstant / ökande"
+  },
+  {
+    "ID": "geografisk_spridning",
+    "name": "Geografisk spridning",
+    "description": "Om händelsen rör sig till nya geografiska områden. Exempel på bedömning: Lokaliserad / expanderande / omfattande"
+  },
+  {
+    "ID": "sektoriell_spridning",
+    "name": "Sektoriell spridning",
+    "description": "Om påverkan går från en verksamhet eller sektor till flera. Exempel på bedömning: Enskild sektor → flera sektorer"
+  },
+  {
+    "ID": "kaskadeffekter",
+    "name": "Kaskadeffekter",
+    "description": "Om en störning börjar skapa nya störningar genom beroenden. Exempel på bedömning: Energi → tele → verksamhetssystem → kommunal service"
+  },
+  {
+    "ID": "varaktighet",
+    "name": "Varaktighet",
+    "description": "Hur länge händelsen och dess effekter kan bestå. Exempel på bedömning: Kortvarig / utdragen / långvarig"
+  },
+  {
+    "ID": "reversibilitet",
+    "name": "Reversibilitet",
+    "description": "Hur enkelt det är att återgå till normalläge. Exempel på bedömning: Snabbt återställbar / svåråterställbar / permanent påverkan"
+  },
+  {
+    "ID": "förutsägbarhet",
+    "name": "Förutsägbarhet",
+    "description": "Hur väl utvecklingen går att bedöma med tillgänglig information. Exempel på bedömning: Relativt förutsägbar / hög osäkerhet"
+  },
+  {
+    "ID": "informationsläge",
+    "name": "Informationsläge",
+    "description": "Om kunskapsläget förbättras eller försämras och om viktiga informationsluckor finns. Exempel på bedömning: God information / motstridiga uppgifter / stora luckor"
+  },
+  {
+    "ID": "kritiska_beroenden",
+    "name": "Kritiska beroenden",
+    "description": "Om utvecklingen börjar påverka resurser eller system som många andra funktioner behöver. Exempel på bedömning: Energi, tele, transporter, personal etc."
+  },
+  {
+    "ID": "trösklar",
+    "name": "Trösklar",
+    "description": "Om det finns nivåer där utvecklingen snabbt kan förändra karaktär. Exempel på bedömning: Kapacitetsgräns, resursbrist, systembortfall etc."
+  },
+  {
+    "ID": "handlingsutrymme",
+    "name": "Handlingsutrymme",
+    "description": "Om möjligheten att förebygga eller begränsa konsekvenser ökar eller minskar. Exempel på bedömning: Gott / minskande / mycket begränsat"
+  },
+  {
+    "ID": "berörd_befolkning",
+    "name": "Berörd befolkning",
+    "description": "Om fler eller andra grupper successivt exponeras för konsekvenserna. Exempel på bedömning: Avgränsad grupp → bred befolkning"
+  },
+  {
+    "ID": "osäkerhet",
+    "name": "Osäkerhet",
+    "description": "Vilka delar av den framtida utvecklingen som är mest osäkra och avgörande. Exempel på bedömning: Identifierade nyckelosäkerheter och alternativa utvecklingsvägar"
+  }
+]

@@ -13,6 +13,15 @@ const encode = (event) => {
   return `event: ${type}\r\ndata: ${JSON.stringify(payload)}\r\n\r\n`
 }
 
+test('completion accepts backend embedding metadata without changing UI state', () => {
+  for (const fields of [
+    { embedding: { vector: [1, 0], task: 'document' }, embedding_error: null },
+    { embedding: null, embedding_error: { code: 502, message: 'Embedding inference failed' } },
+  ]) {
+    assert.deepEqual(parseAnalysisEvent('analysis_completed', JSON.stringify(fields)), { type: 'analysis_completed' })
+  }
+})
+
 test('title arrives separately without affecting category progress and survives failure', () => {
   let state = advanceAnalysis(initialAnalysis, started)
   assert.equal(state.title, null)

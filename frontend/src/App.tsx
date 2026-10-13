@@ -24,8 +24,16 @@ function App() {
   const requestController = useRef<AbortController | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
+  const focusComposer = useRef(false)
 
   useEffect(() => () => requestController.current?.abort(), [])
+
+  useEffect(() => {
+    if (page === 'home' && focusComposer.current) {
+      textareaRef.current?.focus()
+      focusComposer.current = false
+    }
+  }, [page])
 
   useEffect(() => {
     let active = true
@@ -98,6 +106,12 @@ function App() {
     }
   }
 
+  function startNewAnalysis() {
+    focusComposer.current = true
+    setText('')
+    setPage('home')
+  }
+
   return (
     <main
       className="homepage"
@@ -120,50 +134,59 @@ function App() {
         <button type="button" autoFocus onClick={() => setHealthError(null)}>Stäng</button>
       </dialog>
       <header className="app-toolbar">
-      {page === 'home' && <div className="search-row">
-        <label className="search-widget">
-          <span className="visually-hidden">Sök händelser</span>
-          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <circle cx="10.5" cy="10.5" r="6.5" />
-            <path d="m16 16 5 5" />
-          </svg>
-          <input
-            type="search"
-            placeholder="Sök"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
-        </label>
-      </div>}
-      <PageMenu page={page} analysis={analysis} onNavigate={setPage} />
+        <button type="button" className="app-brand" onClick={() => setPage('home')} aria-label="Förstärkt analysförmåga – Hem">
+          <span>Underrättelse &amp; Analys</span>
+          <span>Förstärkt analysförmåga</span>
+        </button>
+        <div className="toolbar-controls">
+          <div className="search-row">
+            <label className="search-widget">
+              <span className="visually-hidden">Sök händelser</span>
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="10.5" cy="10.5" r="6.5" />
+                <path d="m16 16 5 5" />
+              </svg>
+              <input
+                type="search"
+                placeholder="Sök händelser…"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+            </label>
+          </div>
+          <PageMenu page={page} analysis={analysis} onNavigate={setPage} />
+        </div>
       </header>
-      {page !== 'home' && analysis ? <AnalysisView analysis={analysis} text={submittedText} page={page} /> : <>
-      <section className="event-section" aria-labelledby="homepage-title">
-        <h1 id="homepage-title">Förstärkt Analysförmåga</h1>
-        <form ref={formRef} onSubmit={analyzeEvent} aria-busy={isLoading}>
-          <div className="event-widget">
-            <label className="visually-hidden" htmlFor="event-text">Händelsetext</label>
-            <textarea
-              ref={textareaRef}
-              rows={1}
-              id="event-text"
-              placeholder="Händelsetext…"
-              value={text}
-              onChange={(event) => {
-                setText(event.target.value)
-              }}
-              readOnly={isLoading}
-              required
-            />
+      {page !== 'home' && analysis ? (
+        <AnalysisView analysis={analysis} text={submittedText} page={page} onNewAnalysis={startNewAnalysis} />
+      ) : (
+        <section className="event-section" aria-labelledby="homepage-title">
+          <h1 id="homepage-title">Förstärkt Analysförmåga</h1>
+          <form ref={formRef} onSubmit={analyzeEvent} aria-busy={isLoading}>
+            <div className="event-widget">
+              <div className="event-widget-inner">
+                <label className="field-label" htmlFor="event-text">Källtext</label>
+                <textarea
+                  ref={textareaRef}
+                  rows={1}
+                  id="event-text"
+                  aria-label="Händelsetext"
+                  placeholder="Skriv eller klistra in text här…"
+                  value={text}
+                  onChange={(event) => setText(event.target.value)}
+                  readOnly={isLoading}
+                  required
+                />
+              </div>
+            </div>
             <div className="event-actions">
               <button type="submit" disabled={!text.trim() || isLoading}>
                 {isLoading ? 'Analyserar…' : 'Analysera'}
               </button>
             </div>
-          </div>
-        </form>
-      </section>
-      </>}
+          </form>
+        </section>
+      )}
     </main>
   )
 }

@@ -1,3 +1,4 @@
+import logging
 from unittest.mock import Mock
 
 import pytest
@@ -7,9 +8,25 @@ import app as backend
 import workflows
 
 
+EMBEDDING = {
+    "vector": [1.0] + [0.0] * 767, "model_id": "google/embeddinggemma-2", "task": "document",
+    "dimensions": 768, "normalized": True, "truncated": False, "input_tokens": 10, "embedded_tokens": 10,
+}
+
+
 @pytest.fixture
 def loaders(monkeypatch):
+    monkeypatch.setattr(backend, "load_embedding_runtime", Mock(return_value=Mock(model_id="google/embeddinggemma-2")))
+    monkeypatch.setattr(backend, "embed_document", Mock(return_value=EMBEDDING))
     monkeypatch.setattr(backend, "load_dotenv", Mock())
+    monkeypatch.delenv("LOG_LEVEL", raising=False)
+    monkeypatch.delenv("RETRY_LIMIT", raising=False)
+    for name in (
+        "uvicorn", "uvicorn.error", "uvicorn.access",
+        "uvicorn.error.app", "uvicorn.error.workflows", "uvicorn.error.embeddings",
+    ):
+        target = logging.getLogger(name)
+        monkeypatch.setattr(target, "level", target.level)
     config = Mock(model_type="bert")
     monkeypatch.setattr(backend.AutoConfig, "from_pretrained", Mock(return_value=config))
     monkeypatch.setenv("MODEL_ID", "test/model")
@@ -24,8 +41,87 @@ def loaders(monkeypatch):
     return tokenizer_loader, model_loader
 
 
+@pytest.mark.parametrize("value,expected", [(None, logging.INFO), (" debug ", logging.DEBUG)])
+def test_log_level_configuration(loaders, monkeypatch, value, expected):
+    if value is not None:
+        monkeypatch.setenv("LOG_LEVEL", value)
+    with TestClient(backend.app):
+        assert backend.logger.getEffectiveLevel() == expected
+        assert workflows.logger.getEffectiveLevel() == expected
+        assert logging.getLogger("uvicorn.error").getEffectiveLevel() == expected
+        assert logging.getLogger("uvicorn.access").getEffectiveLevel() == expected
+
+
+@pytest.mark.parametrize("model_type", ["bert", "gemma4"])
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.parametrize("level", ["INFO", "DEBUG"])
+def test_loading_stage_timings(loaders, monkeypatch, caplog, model_type, device, level):
+    monkeypatch.setenv("LOG_LEVEL", level)
+    monkeypatch.setenv("MODEL_DEVICE", device)
+    monkeypatch.setattr(backend.torch.cuda, "is_available", Mock(return_value=True))
+    synchronize = Mock()
+    monkeypatch.setattr(backend.torch.cuda, "synchronize", synchronize)
+    backend.AutoConfig.from_pretrained.return_value.model_type = model_type
+    monkeypatch.setattr(backend.AutoProcessor, "from_pretrained", Mock(return_value=Mock()))
+    monkeypatch.setattr(backend.Gemma4ForConditionalGeneration, "from_pretrained", Mock(return_value=Mock()))
+    clock = Mock(side_effect=range(100))
+    monkeypatch.setattr(backend, "perf_counter", clock)
+    with caplog.at_level(level, logger=backend.logger.name):
+        with TestClient(backend.app):
+            pass
+    records = [record.getMessage() for record in caplog.records if record.name == backend.logger.name]
+    if level == "DEBUG":
+        stages = ["categories", "device_selection", "config", "processor" if model_type == "gemma4" else "tokenizer",
+                  "weights"] + (["device_placement"] if device == "cpu" else []) + ["eval"]
+        assert [message for message in records if message.startswith("Loading stage=")] == [
+            message for stage in stages for message in [
+                f"Loading stage={stage} status=started",
+                f"Loading stage={stage} status=completed duration_seconds=1.000000",
+            ]
+        ]
+    else:
+        assert not any(message.startswith("Loading stage=") for message in records)
+        assert clock.call_count == 2
+    assert any(message.startswith("Model loading finished in") for message in records)
+    assert synchronize.call_count == (1 if device == "cuda" and level == "DEBUG" else 0)
+    model_loader = backend.Gemma4ForConditionalGeneration.from_pretrained if model_type == "gemma4" else loaders[1]
+    if device == "cuda":
+        assert model_loader.call_args.kwargs["device_map"] == {"": "cuda:0"}
+        model_loader.return_value.to.assert_not_called()
+    else:
+        assert "device_map" not in model_loader.call_args.kwargs
+        model_loader.return_value.to.assert_called_once_with("cpu")
+
+
+def test_invalid_log_level_prevents_model_loading(loaders, monkeypatch):
+    monkeypatch.setenv("LOG_LEVEL", "invalid")
+    with pytest.raises(RuntimeError, match="LOG_LEVEL must"):
+        with TestClient(backend.app):
+            pass
+    loaders[0].assert_not_called()
+    loaders[1].assert_not_called()
+
+
+@pytest.mark.parametrize("value,expected", [(None, 1), ("0", 0), (" 2 ", 2)])
+def test_retry_limit_configuration(loaders, monkeypatch, value, expected):
+    if value is not None:
+        monkeypatch.setenv("RETRY_LIMIT", value)
+    with TestClient(backend.app):
+        assert backend.app.state.runtime.retry_limit == expected
+
+
+@pytest.mark.parametrize("value", ["-1", "1.5", "", "invalid"])
+def test_invalid_retry_limit_prevents_model_loading(loaders, monkeypatch, value):
+    monkeypatch.setenv("RETRY_LIMIT", value)
+    with pytest.raises(RuntimeError, match="RETRY_LIMIT must"):
+        with TestClient(backend.app):
+            pass
+    loaders[0].assert_not_called()
+    loaders[1].assert_not_called()
+
+
 def test_requests_share_runtime_and_cleanup(loaders, monkeypatch):
-    empty_results = {"risks": [], "reach": [], "service": []}
+    empty_results = {"risks": [], "reach": [], "service": [], "properties": [], "protection": []}
     runner = Mock(return_value={"title": "Testhändelse", "results": empty_results})
     monkeypatch.setattr(backend, "run_workflows", runner)
     with TestClient(backend.app) as client:
@@ -37,12 +133,15 @@ def test_requests_share_runtime_and_cleanup(loaders, monkeypatch):
             "model_id": "test/model",
             "device": "cpu",
             "model_loaded": True,
+            "embedding_model_id": "google/embeddinggemma-2",
+            "embedding_model_loaded": True,
         }
         runner.assert_not_called()
         for _ in range(2):
             response = client.post("/analyze-event", json={"text": "  Swedish event  "})
             assert response.status_code == 200
-            assert response.json() == {"status": "ok", "title": "Testhändelse", "results": empty_results}
+            assert response.json() == {"status": "ok", "title": "Testhändelse", "results": empty_results,
+                                       "embedding": EMBEDDING, "embedding_error": None}
         assert runner.call_count == 2
         runner.assert_called_with("Swedish event", runtime, backend.app.state.workflow_categories)
         loaders[0].assert_called_once_with("test/model")
@@ -70,6 +169,7 @@ def test_article_endpoint_contract(loaders, monkeypatch, article):
     generator = Mock(side_effect=[
         "Testhändelse",
         '[{"ID":"översvämningar"}]', '[{"ID":"2._lokalt"}]', '[{"ID":"vatten_va"}]',
+        '[{"ID":"varaktighet"}]', '[{"ID":"samhällets_funktionalitet"}]',
     ] * 2)
     monkeypatch.setattr(workflows, "generate_text", generator)
     text = (Path(__file__).parent.parent / "data" / article).read_text(encoding="utf-8")
@@ -81,15 +181,19 @@ def test_article_endpoint_contract(loaders, monkeypatch, article):
             assert response.json() == {
                 "status": "ok",
                 "title": "Testhändelse",
+                "embedding": EMBEDDING,
+                "embedding_error": None,
                 "results": {
                     "risks": [{"ID": "översvämningar", "name": "Översvämningar"}],
                     "reach": [{"ID": "2._lokalt", "name": "2. Lokalt"}],
                     "service": [{"ID": "vatten_va", "name": "Vatten/VA"}],
+                    "properties": [{"ID": "varaktighet", "name": "Varaktighet"}],
+                    "protection": [{"ID": "samhällets_funktionalitet", "name": "Samhällets funktionalitet"}],
                 },
             }
             assert backend.app.state.runtime is runtime
     # This validates the API plumbing, not the article's actual classification.
-    assert generator.call_count == 8
+    assert generator.call_count == 12
     loaders[1].assert_called_once()
 
 
@@ -161,7 +265,12 @@ def test_device_selection(loaders, monkeypatch, device, available, expected):
     monkeypatch.setattr(backend.torch.cuda, "is_available", Mock(return_value=available))
     with TestClient(backend.app):
         assert backend.app.state.runtime.device == expected
-        loaders[1].return_value.to.assert_called_once_with(expected)
+        if expected == "cuda":
+            assert loaders[1].call_args.kwargs["device_map"] == {"": "cuda:0"}
+            loaders[1].return_value.to.assert_not_called()
+        else:
+            assert "device_map" not in loaders[1].call_args.kwargs
+            loaders[1].return_value.to.assert_called_once_with("cpu")
 
 
 @pytest.mark.parametrize("model_id", [None, "", "  "])
@@ -188,7 +297,8 @@ def test_invalid_device(loaders, monkeypatch, device, message):
 
 
 @pytest.mark.parametrize("stage", ["tokenizer", "model", "to", "eval"])
-def test_model_loading_failure(loaders, stage):
+def test_model_loading_failure(loaders, stage, monkeypatch, caplog):
+    monkeypatch.setenv("LOG_LEVEL", "DEBUG")
     failing_call = {
         "tokenizer": loaders[0], "model": loaders[1],
         "to": loaders[1].return_value.to, "eval": loaders[1].return_value.eval,
@@ -200,6 +310,9 @@ def test_model_loading_failure(loaders, stage):
             pass
     assert error.value.__cause__ is failure
     assert not hasattr(backend.app.state, "runtime")
+    loading_stage = {"tokenizer": "tokenizer", "model": "weights", "to": "device_placement", "eval": "eval"}[stage]
+    assert f"Loading stage={loading_stage} status=failed duration_seconds=" in caplog.text
+    assert f"Loading stage={loading_stage} status=completed" not in caplog.text
 
 
 def test_cleanup_after_request_error(loaders, monkeypatch):
