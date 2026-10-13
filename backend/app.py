@@ -103,22 +103,24 @@ def load_runtime() -> ModelRuntime:
     try:
         with loading_stage("config"):
             config = AutoConfig.from_pretrained(model_id)
+        placement = {"device_map": {"": "cuda:0"}} if device == "cuda" else {}
         processor = None
         if config.model_type == "gemma4":
             with loading_stage("processor"):
                 processor = AutoProcessor.from_pretrained(model_id)
                 tokenizer = processor.tokenizer
-            with loading_stage("weights"):
+            with loading_stage("weights", device=device):
                 model = Gemma4ForConditionalGeneration.from_pretrained(
-                    model_id, config=config, dtype="auto"
+                    model_id, config=config, dtype="auto", **placement
                 )
         else:
             with loading_stage("tokenizer"):
                 tokenizer = AutoTokenizer.from_pretrained(model_id)
-            with loading_stage("weights"):
-                model = AutoModel.from_pretrained(model_id, config=config)
-        with loading_stage("device_placement", device=device):
-            model.to(device)
+            with loading_stage("weights", device=device):
+                model = AutoModel.from_pretrained(model_id, config=config, **placement)
+        if device == "cpu":
+            with loading_stage("device_placement"):
+                model.to(device)
         with loading_stage("eval"):
             model.eval()
     except Exception as exc:

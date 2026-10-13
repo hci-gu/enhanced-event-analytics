@@ -46,10 +46,13 @@ the retry count, and invalid output logs whether the retry limit is exhausted.
 DEBUG does not enable logging for third-party libraries.
 DEBUG also logs loading-stage start, completion/failure, and `duration_seconds`
 for category definitions, device selection, model configuration, processor (Gemma) or tokenizer
-(other models), weights, device placement, and evaluation mode. CUDA device
-placement is synchronized before its timer finishes. The weights stage includes
+(other models), weights, CPU device placement, and evaluation mode. CUDA models
+load directly onto `cuda:0` with `device_map={"": "cuda:0"}`; there is no separate
+CUDA `device_placement` stage or subsequent `.to()` call. The CUDA weights stage
+is synchronized before its timer finishes. The weights stage includes
 everything inside `from_pretrained()`, including checkpoint reading and model
-construction. INFO retains the overall model-loading duration without stage logs
+construction and CUDA placement. Compare total startup time when benchmarking
+against the previous separate placement stage. INFO retains the overall model-loading duration without stage logs
 or the additional CUDA synchronization. Transformers 5.19 (the locked version)
 already loads weights asynchronously by default; the older
 `HF_ENABLE_PARALLEL_LOADING` flag is not used by that version.
@@ -71,8 +74,10 @@ before restarting the service.
 The first startup downloads model/tokenizer files into the Hugging Face cache
 unless a local directory or cached model is used. Loading errors prevent startup.
 
-FastAPI's lifespan loads the tokenizer and model once per server process, moves
-the model to the selected device, and enables evaluation mode. They stay in
+FastAPI's lifespan loads the tokenizer and model once per server process and
+enables evaluation mode. CUDA selection loads the full model directly onto GPU 0
+using Accelerate (included in the CUDA extra). Explicit CPU selection stays on
+CPU even when CUDA is available. They stay in
 `app.state.runtime` until shutdown. Each Uvicorn worker loads its own copy, so
 start with one worker to avoid multiplying RAM/VRAM usage.
 

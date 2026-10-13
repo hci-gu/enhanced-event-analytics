@@ -52,6 +52,10 @@ Successful responses also include `embedding` and `embedding_error` fields.
 The lifespan loads a configurable Transformers tokenizer and base model once
 per server process into `app.state.runtime`. `MODEL_ID` selects a Hugging Face
 model or local directory; `MODEL_DEVICE=auto|cpu|cuda` selects its device.
+When CUDA is selected, `from_pretrained()` places the entire LLM directly on
+`cuda:0` using a fixed device map, without a later `.to()` call. The CUDA
+dependency profile includes Accelerate. DEBUG weights timing includes CUDA
+placement and synchronization; CPU retains a separate device-placement stage.
 Each server worker loads its own model. CPU and CUDA 12.8 dependency profiles
 are managed with uv extras; see [backend setup](backend/README.md).
 

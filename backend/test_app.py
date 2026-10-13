@@ -72,7 +72,7 @@ def test_loading_stage_timings(loaders, monkeypatch, caplog, model_type, device,
     records = [record.getMessage() for record in caplog.records if record.name == backend.logger.name]
     if level == "DEBUG":
         stages = ["categories", "device_selection", "config", "processor" if model_type == "gemma4" else "tokenizer",
-                  "weights", "device_placement", "eval"]
+                  "weights"] + (["device_placement"] if device == "cpu" else []) + ["eval"]
         assert [message for message in records if message.startswith("Loading stage=")] == [
             message for stage in stages for message in [
                 f"Loading stage={stage} status=started",
@@ -84,6 +84,13 @@ def test_loading_stage_timings(loaders, monkeypatch, caplog, model_type, device,
         assert clock.call_count == 2
     assert any(message.startswith("Model loading finished in") for message in records)
     assert synchronize.call_count == (1 if device == "cuda" and level == "DEBUG" else 0)
+    model_loader = backend.Gemma4ForConditionalGeneration.from_pretrained if model_type == "gemma4" else loaders[1]
+    if device == "cuda":
+        assert model_loader.call_args.kwargs["device_map"] == {"": "cuda:0"}
+        model_loader.return_value.to.assert_not_called()
+    else:
+        assert "device_map" not in model_loader.call_args.kwargs
+        model_loader.return_value.to.assert_called_once_with("cpu")
 
 
 def test_invalid_log_level_prevents_model_loading(loaders, monkeypatch):
@@ -258,7 +265,12 @@ def test_device_selection(loaders, monkeypatch, device, available, expected):
     monkeypatch.setattr(backend.torch.cuda, "is_available", Mock(return_value=available))
     with TestClient(backend.app):
         assert backend.app.state.runtime.device == expected
-        loaders[1].return_value.to.assert_called_once_with(expected)
+        if expected == "cuda":
+            assert loaders[1].call_args.kwargs["device_map"] == {"": "cuda:0"}
+            loaders[1].return_value.to.assert_not_called()
+        else:
+            assert "device_map" not in loaders[1].call_args.kwargs
+            loaders[1].return_value.to.assert_called_once_with("cpu")
 
 
 @pytest.mark.parametrize("model_id", [None, "", "  "])
