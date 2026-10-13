@@ -1,0 +1,157 @@
+{
+  "schemaVersion": 1,
+  "targets": {
+    "/": {
+      "targetKind": "existing-ui",
+      "projectId": "e303c7c5-b1d1-4b65-8c75-241e559ba1cf",
+      "baselineDraftId": "d060e430-2363-44e6-b587-3675485e9e67",
+      "activeDraftId": "b8e9f1c2-f190-4080-bf9f-01e188454b94",
+      "userPreferences": "Editorial selected. Reject Signal palette and radar motif, Atlas default assets, decorative Live icons. Keep typography and hierarchy central.",
+      "designSystemPath": ".superdesign/design-system.md",
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        "frontend/src/App.tsx",
+        "frontend/src/App.css",
+        "frontend/src/index.css",
+        "frontend/src/colors.css",
+        "frontend/src/PageMenu.tsx",
+        "frontend/src/PageMenu.css"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "E09B67E5B6EAA45994508276A2033E366EB23B22A3AE8C6E2539F72E40A1A491",
+        "frontend/src/App.tsx": "356C16975B97379D84CFB0CDE22B80C7E3E9B1A2B548B9C63B61BAC1C4B9BB7F",
+        "frontend/src/App.css": "0A4DD9F6B1E222EFFFC31AE2B5773107EDAA661B128C1332B3B55872048845CB",
+        "frontend/src/index.css": "88A92245B97AC2DDFA063C2F16BA08168E98F15D2DACD4F1E719B115CFA967C1",
+        "frontend/src/colors.css": "52CFA44F8BBCC4328BDFE40B3E15915ABBFB33098CB562ED8CB8E6FB26E664B9",
+        "frontend/src/PageMenu.tsx": "F9A32AF771F2F714FA62A0092BFE57A1746C4E94DBF5C68BDADB4266C6A37EB6",
+        "frontend/src/PageMenu.css": "9880C2F69EFE548B165D45365F39DF7CE440B855798E18D7851336A65F9088B5"
+      },
+      "components": [],
+      "drafts": {
+        "d060e430-2363-44e6-b587-3675485e9e67": {
+          "title": "Current frontend",
+          "visualDirection": "Original yellow homepage",
+          "currentVersion": 1
+        },
+        "bc3e441a-d579-49fc-b461-c26091bc508b": {
+          "title": "Signal",
+          "visualDirection": "Dark teal and lime console",
+          "parentDraftId": "d060e430-2363-44e6-b587-3675485e9e67",
+          "currentVersion": 1
+        },
+        "b8e9f1c2-f190-4080-bf9f-01e188454b94": {
+          "title": "Editorial - Förstärkt Analysförmåga",
+          "visualDirection": "Ivory and terracotta editorial, preserved header, single centered composer, no semi-sidebar or filler",
+          "parentDraftId": "d060e430-2363-44e6-b587-3675485e9e67",
+          "currentVersion": 5
+        },
+        "6e56755b-efc3-442f-8622-5e738aa4cad2": {
+          "title": "Atlas",
+          "visualDirection": "Blue centered workspace",
+          "parentDraftId": "d060e430-2363-44e6-b587-3675485e9e67",
+          "currentVersion": 1
+        }
+      },
+      "updatedAt": "2026-10-12T14:27:21.046Z",
+      "implementation": {
+        "branch": "designprototype",
+        "commit": "092af82",
+        "targetPlatform": "PC browsers"
+      }
+    },
+    "status": {
+      "targetKind": "existing-ui",
+      "projectId": "e303c7c5-b1d1-4b65-8c75-241e559ba1cf",
+      "activeDraftId": "c38fa416-79d8-4dcc-9812-28ce7e405f01",
+      "sourceTarget": "/",
+      "sourceDraftId": "b8e9f1c2-f190-4080-bf9f-01e188454b94",
+      "designSystemPath": ".superdesign/design-system.md",
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        "frontend/src/index.css",
+        "frontend/src/colors.css",
+        "frontend/src/PageMenu.tsx",
+        "frontend/src/PageMenu.css",
+        "frontend/src/AnalysisScreen.tsx",
+        "frontend/src/AnalysisScreen.css",
+        "frontend/src/SummaryScreen.tsx",
+        "frontend/src/SummaryScreen.css",
+        "frontend/src/WorkflowRow.tsx"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "E09B67E5B6EAA45994508276A2033E366EB23B22A3AE8C6E2539F72E40A1A491",
+        "frontend/src/index.css": "88A92245B97AC2DDFA063C2F16BA08168E98F15D2DACD4F1E719B115CFA967C1",
+        "frontend/src/colors.css": "52CFA44F8BBCC4328BDFE40B3E15915ABBFB33098CB562ED8CB8E6FB26E664B9",
+        "frontend/src/PageMenu.tsx": "F9A32AF771F2F714FA62A0092BFE57A1746C4E94DBF5C68BDADB4266C6A37EB6",
+        "frontend/src/PageMenu.css": "9880C2F69EFE548B165D45365F39DF7CE440B855798E18D7851336A65F9088B5",
+        "frontend/src/AnalysisScreen.tsx": "2951F4D213CC65CC358744E4C97E0309DD964D51C265035CC104034989D45A24",
+        "frontend/src/AnalysisScreen.css": "D5C82A5CC4AF37145B9F20F6FFEB900E49C066890C59245457F532D2D0801CE8",
+        "frontend/src/SummaryScreen.tsx": "C5FF555C0757AD18A8362B6AA1D0FF79F681F52A3990CE13B888FF5B9D092A53",
+        "frontend/src/SummaryScreen.css": "77DFB6B27E4DAF624F4934EB69502D364416873EED722AD2C7A6760708706C82",
+        "frontend/src/WorkflowRow.tsx": "A78EF2342B44470BFEDB0035BEB0801DFB26E085F6B453D068D8B0F8C4674689"
+      },
+      "components": [],
+      "drafts": {
+        "c38fa416-79d8-4dcc-9812-28ce7e405f01": {
+          "title": "Editorial — Status (Corrected)",
+          "visualDirection": "Approved Editorial styling with example event data",
+          "parentDraftId": "b8e9f1c2-f190-4080-bf9f-01e188454b94",
+          "currentVersion": 2
+        }
+      },
+      "updatedAt": "2026-10-12T14:27:21.046Z",
+      "implementation": {
+        "branch": "designprototype",
+        "commit": "092af82",
+        "targetPlatform": "PC browsers"
+      }
+    },
+    "summary": {
+      "targetKind": "existing-ui",
+      "projectId": "e303c7c5-b1d1-4b65-8c75-241e559ba1cf",
+      "activeDraftId": "5968c30c-1c5c-4375-b9bc-4d5d5d9b6114",
+      "sourceTarget": "/",
+      "sourceDraftId": "b8e9f1c2-f190-4080-bf9f-01e188454b94",
+      "designSystemPath": ".superdesign/design-system.md",
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        "frontend/src/index.css",
+        "frontend/src/colors.css",
+        "frontend/src/PageMenu.tsx",
+        "frontend/src/PageMenu.css",
+        "frontend/src/AnalysisScreen.tsx",
+        "frontend/src/AnalysisScreen.css",
+        "frontend/src/SummaryScreen.tsx",
+        "frontend/src/SummaryScreen.css",
+        "frontend/src/WorkflowRow.tsx"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "E09B67E5B6EAA45994508276A2033E366EB23B22A3AE8C6E2539F72E40A1A491",
+        "frontend/src/index.css": "88A92245B97AC2DDFA063C2F16BA08168E98F15D2DACD4F1E719B115CFA967C1",
+        "frontend/src/colors.css": "52CFA44F8BBCC4328BDFE40B3E15915ABBFB33098CB562ED8CB8E6FB26E664B9",
+        "frontend/src/PageMenu.tsx": "F9A32AF771F2F714FA62A0092BFE57A1746C4E94DBF5C68BDADB4266C6A37EB6",
+        "frontend/src/PageMenu.css": "9880C2F69EFE548B165D45365F39DF7CE440B855798E18D7851336A65F9088B5",
+        "frontend/src/AnalysisScreen.tsx": "2951F4D213CC65CC358744E4C97E0309DD964D51C265035CC104034989D45A24",
+        "frontend/src/AnalysisScreen.css": "D5C82A5CC4AF37145B9F20F6FFEB900E49C066890C59245457F532D2D0801CE8",
+        "frontend/src/SummaryScreen.tsx": "C5FF555C0757AD18A8362B6AA1D0FF79F681F52A3990CE13B888FF5B9D092A53",
+        "frontend/src/SummaryScreen.css": "77DFB6B27E4DAF624F4934EB69502D364416873EED722AD2C7A6760708706C82",
+        "frontend/src/WorkflowRow.tsx": "A78EF2342B44470BFEDB0035BEB0801DFB26E085F6B453D068D8B0F8C4674689"
+      },
+      "components": [],
+      "drafts": {
+        "5968c30c-1c5c-4375-b9bc-4d5d5d9b6114": {
+          "title": "Editorial — Sammanfattning (Correction Pass)",
+          "visualDirection": "Approved Editorial styling with example event data",
+          "parentDraftId": "b8e9f1c2-f190-4080-bf9f-01e188454b94",
+          "currentVersion": 2
+        }
+      },
+      "updatedAt": "2026-10-12T14:27:21.047Z",
+      "implementation": {
+        "branch": "designprototype",
+        "commit": "092af82",
+        "targetPlatform": "PC browsers"
+      }
+    }
+  }
+}

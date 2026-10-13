@@ -1,0 +1,185 @@
+<!DOCTYPE html><html lang="sv"><head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="view-transition" content="same-origin">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:wght@400;600;700&display=swap');
+    @import url('https://api.fontshare.com/v2/css?f[]=switzer@400,500,600&display=swap');
+
+    :root {
+      --base: #f4efe6;
+      --cards: #fffcf5;
+      --ink: #342e29;
+      --secondary: #74746a;
+      --accent: #a3432c;
+      --border: #ddd7ca;
+    }
+
+    @view-transition {
+      navigation: auto;
+    }
+
+    ::view-transition-old(root),
+    ::view-transition-new(root) {
+      animation-duration: 0.4s;
+      animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .editorial-grid {
+      background-image: 
+        linear-gradient(var(--border) 1px, transparent 1px), 
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 40px 40px;
+      background-position: center center;
+      opacity: 0.4;
+    }
+
+    .serif-title {
+      font-family: 'Crimson Pro', serif;
+    }
+
+    .sans-body {
+      font-family: 'Switzer', sans-serif;
+    }
+
+    .editorial-card {
+      box-shadow: 4px 4px 0px var(--border);
+      border: 1px solid var(--border);
+    }
+
+    .input-focus:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px var(--accent);
+    }
+
+    .animate-reveal {
+      animation: reveal 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    }
+
+    @keyframes reveal {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+  <div class="min-h-screen relative flex flex-col sans-body overflow-hidden bg-[#f4efe6] text-[#342e29]">
+    <!-- Background Grid Texture -->
+    <div class="absolute inset-0 editorial-grid pointer-events-none z-0"></div>
+
+    <header class="relative z-10 px-8 py-6 flex justify-between items-start border-b border-[#ddd7ca] bg-[#f4efe6]/90 backdrop-blur-sm">
+      <div class="flex items-center gap-4">
+        <div>
+          <p class="text-[10px] uppercase tracking-[0.2em] text-[#74746a] font-semibold">Underrättelse & Analys</p>
+          <p class="text-sm font-medium">Förstärkt analysförmåga</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-6">
+        <div class="relative flex items-center">
+          <iconify-icon icon="lucide:search" class="absolute left-3 text-[#74746a]"></iconify-icon>
+          <input 
+            type="search" 
+            id="nav-search-input"
+            placeholder="Sök händelser..." 
+            class="bg-transparent border-b border-[#ddd7ca] pl-10 pr-4 py-2 text-sm focus:border-[#a3432c] transition-colors outline-none"
+          >
+        </div>
+        <button id="nav-menu-btn" class="flex items-center gap-2 px-4 py-2 hover:bg-[#ddd7ca]/30 transition-colors border border-transparent hover:border-[#ddd7ca]">
+          <span class="text-xs uppercase tracking-widest font-semibold">Meny</span>
+          <iconify-icon icon="lucide:menu" class="text-lg"></iconify-icon>
+        </button>
+      </div>
+    </header>
+
+    <main class="relative z-10 flex-1 flex flex-col md:flex-row gap-0 max-w-[1440px] mx-auto w-full">
+      <!-- Left Sidebar: Perspective List -->
+      <aside class="w-full md:w-1/3 border-r border-[#ddd7ca] p-8 lg:p-12 animate-reveal" style="animation-delay: 0.1s">
+        <div class="sticky top-8">
+          <h2 class="text-xs uppercase tracking-[0.3em] text-[#74746a] font-bold mb-10">Arbetsflöde</h2>
+          <ul class="space-y-8">
+            <li class="group relative pl-8 opacity-100">
+              <div class="absolute left-0 top-1/2 -translate-y-1/2 w-4 h-[1px] bg-[#a3432c]"></div>
+              <p class="text-xs text-[#a3432c] font-bold mb-1">01</p>
+              <h3 class="serif-title text-xl font-bold group-hover:text-[#a3432c] transition-colors">Källtext</h3>
+              <p class="text-sm text-[#74746a] mt-2 leading-relaxed">Klistra in råmaterialet som ska ligga till grund för analysen.</p>
+            </li>
+            <li class="group relative pl-8 opacity-40 hover:opacity-100 transition-opacity">
+              <div class="absolute left-0 top-1/2 -translate-y-1/2 w-4 h-[1px] bg-[#ddd7ca] group-hover:bg-[#a3432c]"></div>
+              <p class="text-xs text-[#74746a] font-bold mb-1 group-hover:text-[#a3432c]">02</p>
+              <h3 class="serif-title text-xl font-bold">Bearbetning</h3>
+              <p class="text-sm text-[#74746a] mt-2 leading-relaxed">Systemet identifierar risker, räckvidd och servicebehov.</p>
+            </li>
+            <li class="group relative pl-8 opacity-40 hover:opacity-100 transition-opacity">
+              <div class="absolute left-0 top-1/2 -translate-y-1/2 w-4 h-[1px] bg-[#ddd7ca] group-hover:bg-[#a3432c]"></div>
+              <p class="text-xs text-[#74746a] font-bold mb-1 group-hover:text-[#a3432c]">03</p>
+              <h3 class="serif-title text-xl font-bold">Sammanfattning</h3>
+              <p class="text-sm text-[#74746a] mt-2 leading-relaxed">Samlad analys med textstöd från din händelsetext.</p>
+            </li>
+          </ul>
+          
+          <div class="mt-20 pt-10 border-t border-[#ddd7ca]">
+            <p class="text-[11px] text-[#74746a] leading-loose italic">
+              "Analys handlar inte om att samla in mer data, utan om att förstå de mönster som redan finns framför oss."
+            </p>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Main Composer Area -->
+      <section class="flex-1 p-8 lg:p-12 animate-reveal" style="animation-delay: 0.2s">
+        <div class="max-w-3xl">
+          <h1 id="homepage-title" class="serif-title text-5xl lg:text-7xl font-bold leading-tight tracking-tight mb-4">
+            Se sammanhanget.<br>
+            Förstå händelsen.
+          </h1>
+          <p class="text-lg text-[#74746a] mb-12 max-w-xl">Förstärkt analysförmåga för kvalificerade bedömningar av nyhets- och händelsetexter.</p>
+
+          <form id="analysis-form" class="relative">
+            <div class="editorial-card bg-[#fffcf5] p-1 mb-8">
+              <div class="border border-[#ddd7ca] p-6">
+                <label class="text-[10px] uppercase tracking-widest font-bold text-[#74746a] block mb-4" for="event-text">
+                  Inmatning av källtext
+                </label>
+                <textarea 
+                  id="event-text" 
+                  placeholder="Skriv eller klistra in text här…" 
+                  required
+                  class="w-full min-h-[320px] bg-transparent text-lg leading-relaxed placeholder-[#ddd7ca] resize-none focus:outline-none sans-body"
+                ></textarea>
+              </div>
+            </div>
+
+            <div class="flex flex-col sm:flex-row items-center justify-between gap-6">
+              <div class="flex items-center gap-4 text-[#74746a]">
+                <p class="text-xs leading-relaxed">
+                  Resultaten kopplas till textstöd i din händelsetext.
+                </p>
+              </div>
+              <button 
+                type="submit" 
+                id="analyze-btn" 
+                class="group relative inline-flex items-center justify-center px-10 py-4 bg-[#a3432c] text-[#fffcf5] font-bold text-sm tracking-widest uppercase overflow-hidden transition-all hover:bg-[#8e3a26]"
+              >
+                <span class="relative z-10">Analysera</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      </section>
+    </main>
+
+    <footer class="relative z-10 border-t border-[#ddd7ca] px-8 py-4 flex flex-col sm:flex-row justify-between items-center text-[10px] uppercase tracking-widest font-bold text-[#74746a]">
+      <div class="flex gap-8 mb-2 sm:mb-0">
+        <span>Underlag → Analys → Sammanfattning</span>
+      </div>
+      <div>
+        Förstärkt analysförmåga
+      </div>
+    </footer>
+  </div>
+</body>
+</html>
