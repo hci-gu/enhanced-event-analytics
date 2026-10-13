@@ -87,8 +87,17 @@ a new submission replaces it.
 Each pane scrolls internally; mobile stacks text above results.
 Verified supporting quotes are highlighted at every exact occurrence. Overlapping
 passages retain all category/workflow links and display workflow colors in bands.
+Each workflow header has an unlabeled highlight slider, on by default and visible even
+when collapsed, to independently show or hide its highlights. Overlapping passages
+retain the colors of enabled workflows. Toggling does not expand/collapse the row.
+The slider has a workflow-specific accessible name for screen readers.
+Click a supporting quote (or activate it with Enter/Space) to scroll its first exact
+occurrence to roughly 25% down the text pane (75% up from the bottom), within the available scroll range.
+Quote navigation also works when that workflow's highlights are hidden and honors
+reduced motion.
 Edit `--evidence-risks-color`, `--evidence-reach-color`, `--evidence-service-color`,
-and `--evidence-fallback-color` in `src/colors.css` to customize them.
+`--evidence-protection-color` (orange for Skyddsvärden), and `--evidence-fallback-color`
+in `src/colors.css` to customize them.
 Each result-group label has a filled dot in its evidence color. Hover, keyboard
 focus and linked evidence selection tint the card with a 45% blend of that color
 over the card surface. The dot remains at full strength.

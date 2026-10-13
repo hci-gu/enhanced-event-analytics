@@ -1,0 +1,52 @@
+Samhällsviktiga styrsystem ligger öppna på internet
+Uppdaterad igår 16:33Publicerad igår 05:30
+
+Tusentals system som styr viktig teknik i Sverige har sårbarheter som angripare kan utnyttja, visar SVT:s kartläggning.
+
+Flera av systemen används till samhällsviktig verksamhet.
+
+– Vi rekommenderar ingen att exponera på det här sättet, säger John Billow, chef för Nationellt cybersäkerhetscenter som är en del av FRA.
+
+Styrsystem används för att styra eller övervaka fysisk utrustning, ofta på distans med hjälp av internet. Om systemen störs, manipuleras eller slås ut kan det få allvarliga konsekvenser i samhället.
+
+SVT har identifierat säkerhetsbrister i tusentals sådana svenska system. Det handlar om system där vem som helst kan komma åt den digitala entrén, exempelvis via en inloggningssida i sin webbläsare eller andra tekniska anslutningar. Enligt Billow är bristerna allvarliga.
+
+– När man exponerar sina system mot internet utan rätt lager av säkerhet får man de här sårbarheterna, säger han.
+Utbrett problem
+
+Totalt hittar vi 3 800 exponerade IP-adresser där industriella styrsystem varit synliga från det publika internet. I 2 000 av de fallen saknas identifierbara skydd, förutom användarnamn och lösenord.
+
+Vi har bland annat hittat kylsystem i mataffärer och IVF-laboratorier, avfrostningssystem på vindkraftverk, ventilation i vallokaler och utrustning kopplad till moderna lantbruk.
+
+Systemen vi hittar är åtkomliga via webbläsare och leder i många fall till inloggningssidor som kräver användarnamn och lösenord.
+
+Så var även fallet i norska Bremanger, som utsattes för en cyberattack ifjol. Genom att ta sig förbi en inloggningssida kunde hackare fjärrstyra dammluckorna till sjön Risevatnet. En lucka öppnades och 500 liter vatten per sekund flödade ut.
+Inget lösenordskrav
+
+Men vi hittar flera fall av exponerade system i Sverige, där inte ens användarnamn och lösenord behövs, bland annat i byggnaden där Region Västra Götaland har kontor i Skövde. Enligt öppen data kan vem som helst, utan krav på lösenord, styra värme och ventilation i fastigheten.
+
+När vi kontaktar fastighetsägaren stänger de omedelbart exponeringen. De svarar per mejl att det handlar om ett äldre system som integrerats i ett nytt. Det nya systemet varnar vid avvikelser, därför bedömer de att säkerhetsrisker inte funnits.
+Varnat i flera år
+
+Riskerna har FRA och Myndigheten för civilt försvar varnat för under flera år. Myndigheten betonar att onödiga internetanslutningar till styrsystem bör tas bort.
+
+Räcker det att styrsystem skyddas med användarnamn och lösenord?
+
+– Nej. Det behövs något mer för att säkra sitt system. Även om det är ett system där konsekvenserna inte är så stora, säger Billow.
+KARTLÄGGNING ICS-SYSTEM (Industrial Control Systems)
+
+Sökmotorn som SVT har använt fångar bara upp system som är exponerade mot internet. Utrustning som skyddas helt syns inte i kartläggningen. Siffrorna visar vad som är åtkomligt från internet, inte alla installerade industriella styrsystem, alltså ICS-enheter, i Sverige.
+
+Uppgifterna kommer från en löpande uppdaterad sökmotor som kartlägger öppen data från system som är synliga från internet. SVT har haft tillgång till materialet mellan maj och september. Under den perioden har antalet system i Sverige som klassificerats som ICS (industriellt styrsystem) och varit synliga varierat mellan omkring 3 600 och 3 800.
+
+Variationerna kan bland annat bero på att system kopplas upp eller ned, ändrar sin konfiguration eller slutar svara på skanningar. Även sökmotorns löpande insamling och klassificering av system kan påverka siffrorna. Resultaten ska därför ses som uppskattningar av den internetexponerade miljön – inte som ett exakt antal av alla ICS-system i Sverige.
+
+    Sverige: Kartläggningen omfattar 3 809 unika IP-adresser där industriella styrsystem eller styrsystemtjänster var synliga på internet.
+
+    I över 2 000 fall saknas observerbart skydd på nätverksnivå eller genom kryptering, utifrån vad vi har kunnat identifiera. Av dessa var 1 222 nåbara via industriprotokoll som används för att övervaka och kommunicera med teknisk utrustning. Ytterligare 865 IP-adresser hade både en webbsida som kunde nås från internet och en direkt teknisk anslutning till industriell utrustning. Vi hittar även system som, enligt öppen data, går att nå utan att krav på lösenord. 
+
+    ICS-system som inte har identifierats med något av följande säkerhetsskydd: VPN, Proxy-protokoll, Nätverksgateway, IPsec, TLS-certifikat, autentisering eller brandvägg har kategoriserats som utan skyddslager. När ett ICS-system är direkt åtkomligt från internet utan skydd kan utomstående i regel nå systemets exponerade nätverkstjänst direkt. Det kan vara en webbportal, men också en annan typ av tjänst som används för att övervaka eller styra industriell utrustning. Det kan leda till att angripare lättare kan försöka logga in med gissade eller läckta lösenord och utnyttja säkerhetsbrister i programvaran. SVT har även bortsett från system som är klassade som ”honeypots”, det vill säga system som medvetet satts upp för att efterlikna sårbara tjänster och locka till sig eller upptäcka angrepp. 
+
+    Av de systemen som kan nås av andra tekniska anslutningar än webbgränssnitt domineras av industriprotokollen Modbus och BACnet, två protokoll som används för industriell automation. Protokollen har normalt ingen egen inbyggd inloggningsfunktion. Om de är åtkomliga från internet, utan skyddslager, kan den som når systemet därför kommunicera och styra enheten direkt med tjänsten.
+
+Källa: Censys. 

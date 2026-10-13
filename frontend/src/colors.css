@@ -30,9 +30,10 @@
   --results-panel-background: #fffcf5;
   --result-row-background: #fffcf5;
   --result-active-background: #fbf8f0;
-  --evidence-risks-color: #fddde1;
-  --evidence-reach-color: #ddeadf;
-  --evidence-service-color: #e2e8ff;
-  --evidence-fallback-color: #e9e1f1;
+  --evidence-risks-color: #f6adb8;
+  --evidence-reach-color: #b4d5ba;
+  --evidence-service-color: #b8c7fa;
+  --evidence-protection-color: #f6bb80;
+  --evidence-fallback-color: #cdb5e1;
   --evidence-active-border: var(--text-color);
 }

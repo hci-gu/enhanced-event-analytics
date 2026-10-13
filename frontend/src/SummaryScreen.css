@@ -52,12 +52,23 @@
 .summary-results .workflow-row-content { border-top: 1px solid var(--border-color); padding-top: 24px; }
 .evidence-highlight { color: var(--text-color); border-radius: 0; cursor: pointer; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
 .evidence-highlight[data-active] { outline: 2px solid var(--evidence-active-border); outline-offset: 2px; }
+.workflow-highlight-toggle { display: inline-flex; align-items: center; flex-shrink: 0; width: 44px; height: 28px; padding: 3px; border: 1px solid var(--workflow-muted-text); border-radius: 999px; background: var(--border-color); cursor: pointer; }
+.workflow-highlight-toggle::after { content: ''; width: 20px; height: 20px; border-radius: 50%; background: var(--text-color); transform: translateX(0); transition: transform 180ms ease; }
+.workflow-highlight-toggle[aria-checked="true"] { background: var(--workflow-evidence-color); }
+.workflow-highlight-toggle[aria-checked="true"]::after { transform: translateX(16px); }
+@media (prefers-reduced-motion: reduce) {
+  .workflow-highlight-toggle::after { transition: none; }
+}
+.evidence-quote-link { display: block; width: 100%; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; white-space: pre-wrap; cursor: pointer; text-decoration: underline; text-decoration-color: var(--workflow-muted-text); text-underline-offset: 3px; }
+.evidence-quote-link:hover { text-decoration-color: var(--primary-color); }
 @media (max-width: 800px) {
   .summary-screen { padding: 24px 20px; }
   .summary-heading { flex-wrap: wrap; gap: 16px; margin-bottom: 24px; }
   .summary-columns { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, auto) minmax(120px, 1fr); gap: 24px; }
   .summary-pane:first-child { max-height: min(34dvh, 280px); }
   .summary-text { padding: 24px; font-size: 16px; }
+  .summary-results .workflow-row-header { flex-wrap: wrap; gap: 12px; }
+  .summary-results .workflow-heading { flex-basis: 100%; }
 }
 @media (max-height: 600px) {
   .summary-screen { padding-top: 20px; }

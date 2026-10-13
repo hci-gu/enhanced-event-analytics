@@ -17,6 +17,8 @@ test('summary renders title, registry order, accessible highlights and evidence 
   assert.doesNotMatch(html, /analysis-uuid/)
   assert.match(html, /<mark[^>]*role="button"[^>]*tabindex="0"/)
   assert.match(html, /Textstöd: Riskområden: Översvämningar/)
+  assert.match(html, /role="switch" aria-checked="true" aria-label="Textmarkeringar för Riskområden"/)
+  assert.match(html, /<button[^>]*aria-label="Visa textstöd i händelsetexten: vatten"/)
   assert.match(html, /Verifierat textstöd saknas/)
   assert.match(html, /Inga kategorier matchade/)
   assert.match(html, /&lt;script&gt;/)

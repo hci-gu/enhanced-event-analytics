@@ -11,6 +11,7 @@ const require = createRequire(import.meta.url)
 const { chromium } = require(process.argv[2] || 'playwright')
 const directory = resolve('dist')
 const screenshots = await mkdtemp(join(tmpdir(), 'event-analytics-ui-'))
+const sourceText = `${'Bakgrund till händelsen.\n'.repeat(70)}Vatten stiger och påverkar vägarna.\n${'Fortsatt rapportering.\n'.repeat(70)}`.trim()
 const workflows = [
   { id: 'risks', label: 'Riskområden' }, { id: 'reach', label: 'Räckvidd' },
   { id: 'service', label: 'Verksamheter' },
@@ -64,7 +65,7 @@ try {
     await menu.click()
     await page.mouse.click(4, 4)
     assert.equal(await menu.getAttribute('aria-expanded'), 'false')
-    await page.getByLabel('Händelsetext', { exact: true }).fill('Vatten stiger och påverkar vägarna.')
+    await page.getByLabel('Händelsetext', { exact: true }).fill(sourceText)
     await page.getByRole('button', { name: 'Analysera', exact: true }).click()
     await page.locator('.workflow-queued').first().waitFor()
     assert.equal(await page.locator('#analysis-title').textContent(), '')
@@ -91,10 +92,11 @@ try {
     await menu.click()
     await page.getByRole('button', { name: 'Hem', exact: true }).click()
     assert.equal(await page.getByRole('button', { name: 'Analyserar…' }).isDisabled(), true)
-    assert.equal(await page.getByLabel('Händelsetext', { exact: true }).inputValue(), 'Vatten stiger och påverkar vägarna.')
+    assert.equal(await page.getByLabel('Händelsetext', { exact: true }).inputValue(), sourceText)
     for (const item of workflows.slice(1)) {
       if (item.id !== 'reach') send('workflow_started', { id: item.id })
-      send('workflow_completed', { id: item.id, results: [] })
+      send('workflow_completed', { id: item.id, results: item.id === 'reach'
+        ? [{ ID: 'local', name: 'Lokalt', evidence: ['stiger'] }] : [] })
     }
     send('analysis_completed', {})
     response.end()
@@ -113,11 +115,40 @@ try {
     const result = page.locator('.summary-results .workflow-result').first()
     const dotColor = await result.locator('.workflow-color-dot').evaluate((element) => getComputedStyle(element).backgroundColor)
     assert.equal(dotColor, await mark.evaluate((element) => getComputedStyle(element).backgroundColor))
-    await mark.click()
+    await mark.evaluate((element) => element.click())
     assert.equal(await mark.getAttribute('aria-pressed'), 'true')
     assert.equal(await page.locator('.workflow-result[data-active]').count(), 1)
     await page.keyboard.press('Escape')
+    const highlightToggle = result.getByRole('switch', { name: 'Textmarkeringar för Riskområden' })
+    assert.equal(await highlightToggle.getAttribute('aria-checked'), 'true')
+    await highlightToggle.click()
+    assert.equal(await result.getAttribute('open'), null)
+    assert.equal(await highlightToggle.getAttribute('aria-checked'), 'false')
+    assert.equal(await page.locator('mark').count(), 1)
+    assert.equal(await page.locator('mark').textContent(), 'stiger')
+    // Keyboard activation restores highlights without expanding the disclosure.
+    await highlightToggle.focus()
+    await page.keyboard.press('Space')
+    assert.equal(await highlightToggle.getAttribute('aria-checked'), 'true')
+    assert.equal(await result.getAttribute('open'), null)
     await page.locator('.summary-results summary').first().click()
+    const quoteButton = result.getByRole('button', { name: 'Visa textstöd i händelsetexten: Vatten stiger', exact: true })
+    const assertQuotePosition = async () => {
+      const fraction = await page.locator('.summary-text').evaluate((element) => {
+        const passage = [...element.querySelectorAll('[data-segment-start]')].find((segment) => segment.textContent === 'Vatten ')
+        return (passage.getClientRects()[0].top - element.getBoundingClientRect().top - element.clientTop) / element.clientHeight
+      })
+      assert.ok(Math.abs(fraction - 0.25) < 0.03, `Quote position: ${fraction}`)
+    }
+    await quoteButton.click()
+    await assertQuotePosition()
+    await highlightToggle.click()
+    assert.equal(await result.getAttribute('open'), '')
+    await page.locator('.summary-text').evaluate((element) => { element.scrollTop = 0 })
+    await quoteButton.focus()
+    await page.keyboard.press('Enter')
+    await assertQuotePosition()
+    await highlightToggle.click()
     assert.notEqual(await result.evaluate((element) => getComputedStyle(element).backgroundColor), dotColor)
     assert.ok((await menu.boundingBox()).y >= 0)
     assert.ok((await page.locator('#summary-title').boundingBox()).y >= 0)

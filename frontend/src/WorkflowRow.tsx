@@ -7,9 +7,10 @@ const stateLabels = {
 }
 
 export default function WorkflowRow({ workflow, showTags = false, showStatus = false, selected,
-  style, rowEvents, summaryEvents }: {
+  style, rowEvents, summaryEvents, highlightsEnabled, onToggleHighlights, onQuoteClick }: {
   workflow: WorkflowState; showTags?: boolean; showStatus?: boolean; selected?: boolean
   style?: CSSProperties; rowEvents?: HTMLAttributes<HTMLElement>; summaryEvents?: HTMLAttributes<HTMLElement>
+  highlightsEnabled?: boolean; onToggleHighlights?: () => void; onQuoteClick?: (quote: string) => void
 }) {
   const detailsRef = useRef<HTMLDetailsElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
@@ -71,6 +72,13 @@ export default function WorkflowRow({ workflow, showTags = false, showStatus = f
         {workflow.results.length ? workflow.results.map((match) => match.name).join(', ') : 'Inga kategorier matchade.'}
       </span>}
     </div>
+    {onToggleHighlights && <button type="button" className="workflow-highlight-toggle"
+      role="switch" aria-checked={highlightsEnabled} aria-label={`Textmarkeringar för ${workflow.label}`}
+      onClick={(event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        onToggleHighlights()
+      }} />}
     {showStatus && <span className="workflow-state-text">{stateLabels[workflow.status]}</span>}
     {completed && <span className="workflow-chevron" aria-hidden="true">
       <svg viewBox="0 0 24 24" fill="none"><path d="m6 9 6 6 6-6" /></svg>
@@ -89,7 +97,10 @@ export default function WorkflowRow({ workflow, showTags = false, showStatus = f
       {workflow.results.length ? <ul>{workflow.results.map((match) => <li key={match.ID}>
         <strong>{match.name}</strong>
         {match.evidence?.length ? <ul className="evidence-quotes">{match.evidence.map((quote) =>
-          <li key={quote}><q>{quote}</q></li>)}</ul> : <p>Verifierat textstöd saknas.</p>}
+          <li key={quote}>{onQuoteClick
+            ? <button type="button" className="evidence-quote-link" onClick={() => onQuoteClick(quote)}
+              aria-label={`Visa textstöd i händelsetexten: ${quote}`}><q>{quote}</q></button>
+            : <q>{quote}</q>}</li>)}</ul> : <p>Verifierat textstöd saknas.</p>}
       </li>)}</ul> : <p>Inga kategorier matchade.</p>}
     </div>
     </div>

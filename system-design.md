@@ -29,8 +29,12 @@ shared expandable workflow widgets on the right in a second content column.
 Collapsed groups show their category names. Ny analys clears the composer and
 focuses it while retaining completed results in the menu until a new submission.
 Exact supporting quotes highlight all
-occurrences; overlapping passages retain all associations. Hover/focus connects
-passages and workflows in both directions; click/tap pins selection, Escape clears
+occurrences; overlapping passages retain all associations.
+Each workflow header has an unlabeled highlight switch, enabled by default and
+available while collapsed. Disabled workflows leave other overlapping colors intact.
+Activating a result quote scrolls its first occurrence to roughly 25% down the text
+viewport, within scroll limits, even when its workflow highlights are off.
+Hover/focus connects passages and workflows in both directions; click/tap pins selection, Escape clears
 it. Text/results scroll independently and stack on mobile. State is in memory only.
 The title text is initially absent, with its heading area reserved to keep other
 widgets in place. A background title step replaces the former UUID

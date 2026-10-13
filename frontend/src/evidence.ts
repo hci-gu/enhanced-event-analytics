@@ -22,7 +22,7 @@ export function activeSelection(state: Interaction): Selection {
 }
 
 export function workflowColor(id: string): string {
-  return `var(--evidence-${['risks', 'reach', 'service'].includes(id) ? id : 'fallback'}-color)`
+  return `var(--evidence-${['risks', 'reach', 'service', 'protection'].includes(id) ? id : 'fallback'}-color)`
 }
 
 // JS indices consistently use UTF-16, including quotes containing emoji.
