@@ -89,6 +89,14 @@ Verified supporting quotes are highlighted at every exact occurrence. Overlappin
 passages retain all category/workflow links and display workflow colors in bands.
 Edit `--evidence-risks-color`, `--evidence-reach-color`, `--evidence-service-color`,
 and `--evidence-fallback-color` in `src/colors.css` to customize them.
+Each result-group label has a filled dot in its evidence color. Hover, keyboard
+focus and linked evidence selection tint the card with a 45% blend of that color
+over the card surface. The dot remains at full strength.
+
+The Sidor dropdown fades and slides in and out; closed navigation is inert so its
+links cannot receive focus during the closing transition. Completed workflow
+disclosures expand/collapse over 180ms, including when activated by keyboard.
+Both transitions honor reduced motion.
 
 Hover or focus a passage to emphasize its workflows; hover or focus a workflow
 to emphasize its passages. Click/tap either to pin selection; select it again or

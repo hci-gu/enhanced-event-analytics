@@ -49,7 +49,7 @@
   cursor: pointer;
   transition: background-color 160ms ease;
 }
-.menu-trigger svg { width: 18px; height: 18px; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.menu-trigger svg { width: 18px; height: 18px; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; transition: transform 180ms ease; }
 .menu-trigger:hover, .menu-trigger[aria-expanded='true'] {
   background: var(--button-disabled-background);
   border-color: var(--border-color);
@@ -64,8 +64,13 @@
   border: 1px solid var(--border-color);
   background: var(--textbox-background);
   box-shadow: 4px 4px 0 var(--border-color);
-  animation: editorial-reveal 160ms ease both;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-6px);
+  pointer-events: none;
+  transition: opacity 180ms ease, transform 180ms ease, visibility 0s linear 180ms;
 }
+.page-navigation[data-open] { opacity: 1; visibility: visible; transform: translateY(0); pointer-events: auto; transition-delay: 0s; }
 .page-navigation button {
   display: block;
   width: 100%;

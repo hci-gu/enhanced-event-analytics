@@ -33,7 +33,19 @@
   box-shadow: 4px 4px 0 var(--border-color);
 }
 .summary-results { padding: 0 5px 5px 0; }
-.summary-results .workflow-result { margin-bottom: 16px; }
+.summary-results .workflow-result { margin-bottom: 16px; transition: background-color 180ms ease, border-color 180ms ease; }
+.summary-results .workflow-result:is(:hover, :focus-within, [data-active]) {
+  background: color-mix(in srgb, var(--workflow-evidence-color) 45%, var(--result-row-background));
+}
+.workflow-color-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-left: 8px;
+  border-radius: 50%;
+  background: var(--workflow-evidence-color);
+  vertical-align: middle;
+}
 .summary-results .workflow-label { font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--workflow-muted-text); }
 .summary-results .workflow-row-header { gap: 16px; min-height: 88px; }
 .summary-results .workflow-result[data-active] .workflow-label { color: var(--primary-color); }

@@ -58,7 +58,8 @@ export default function PageMenu({ page, analysis, onNavigate }: {
         <path d="m6 9 6 6 6-6" />
       </svg>
     </button>
-    {open && <nav id="page-navigation" className="page-navigation" ref={popup} aria-label="Sidor"
+    <nav id="page-navigation" className="page-navigation" ref={popup} aria-label="Sidor"
+      data-open={open || undefined} aria-hidden={!open} inert={!open}
       onKeyDown={(event) => {
         const items = [...(popup.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [])]
         const index = items.indexOf(document.activeElement as HTMLButtonElement)
@@ -75,6 +76,6 @@ export default function PageMenu({ page, analysis, onNavigate }: {
           close()
           onNavigate(item.id)
         }}>{item.label}</button>)}
-    </nav>}
+    </nav>
   </div>
 }
