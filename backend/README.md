@@ -91,7 +91,9 @@ HTTP 200 response:
   "results": {
     "risks": [{"ID": "översvämningar", "name": "Översvämningar"}],
     "reach": [{"ID": "2._lokalt", "name": "2. Lokalt"}],
-    "service": [{"ID": "vatten_va", "name": "Vatten/VA"}]
+    "service": [{"ID": "vatten_va", "name": "Vatten/VA"}],
+    "properties": [{"ID": "varaktighet", "name": "Varaktighet"}],
+    "protection": [{"ID": "samhällets_funktionalitet", "name": "Samhällets funktionalitet"}]
   }
 }
 ```
@@ -99,7 +101,8 @@ HTTP 200 response:
 Text is trimmed; missing, non-string, empty, and whitespace-only values return
 HTTP 422. Each workflow can return zero, one, or multiple matches; no matches
 returns an empty list under that workflow's key. IDs and display names are resolved
-from `schemas/risks.json`, `schemas/reach.json`, and `schemas/service.json`, respectively.
+from `schemas/risks.json`, `schemas/reach.json`, `schemas/service.json`,
+`schemas/properties.json`, and `schemas/protection.json`, respectively.
 Persistence is not implemented.
 
 ## Workflows
@@ -114,19 +117,27 @@ log a warning without retrying. Input-limit and unsupported-runtime errors still
 stop analysis with 413/503. Title generation start and duration are logged at INFO.
 
 `workflows.py` contains independent workflow functions and a `WORKFLOWS` registry.
-The functions are `categorize_risks`, `categorize_reach`, and `categorize_service`,
+The functions are `categorize_risks`, `categorize_reach`, `categorize_service`,
+`categorize_properties`, and `categorize_protection`,
 each accepting `(text, runtime, categories)` and using its own Swedish system prompt.
 Risks evaluates supported risk areas; reach evaluates geographical/organizational
 scope without assuming the user's organization or automatically selecting broader/narrower
 levels. Service evaluates affected functions and those explicitly involved in handling
-the event, avoiding matches based only on a mentioned location. The shared helper
+the event, avoiding matches based only on a mentioned location. Properties selects
+event characteristics that the text provides enough information to assess;
+assessment examples in the schema guide selection and are not separate output
+values. Protection selects affected or explicitly threatened protection values.
+Both return category IDs and display names, with verified evidence in streaming
+responses, using the same format as the existing workflows. The shared helper
 handles generation and validated ID-to-name mapping. To add a
 workflow, define a function with that signature and register `Workflow(function,
 "category-file.json", "Display label")` under its result key. A function that does not need categories
 can use `Workflow(function)` and receives an empty tuple. Remove an entry to disable
 a workflow. `run_workflows` generates the title first, then runs registered functions
 in order and returns `{title, results}` with category results under their registry
-keys (`risks`, `reach`, `service`). All four steps reuse the same model instance;
+keys (`risks`, `reach`, `service`, `properties`, `protection`) in that order.
+The stream labels for the new workflows are `Egenskaper` and `Skyddsvärden`.
+All six steps reuse the same model instance;
 there is one model call per step, not a separate model per task.
 
 Category definitions are validated and loaded once during startup before model
@@ -221,9 +232,11 @@ uv run --extra CPU python smoke_articles.py
 
 This sends both articles to the running backend, reusing its resident model rather
 than loading a second copy. It prints matched IDs/names and checks the response
-contract for all three workflows and unchanged health metadata. Review the flooding article for
+contract for all five workflows and unchanged health metadata. Review the flooding article for
 `Översvämningar` and `Vattenbrist och torka`; check that the suspicious-object article
 accounts for the later finding that the object was not dangerous, without inventing
 an explosion or terrorism. Also review the reach levels and whether service matches
-are supported by actual effects or response activities. Exact matches are not asserted because quality needs
+are supported by actual effects or response activities. Review whether property
+matches have enough information for assessment and protection matches describe
+affected or explicitly threatened values. Exact matches are not asserted because quality needs
 manual review. A request can take up to five minutes on CPU.

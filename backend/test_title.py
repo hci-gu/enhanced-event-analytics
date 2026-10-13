@@ -102,14 +102,14 @@ def test_title_preserves_request_errors(loaders, monkeypatch, status, path):
 
 
 def test_title_failure_falls_back_then_runs_categories(loaders, monkeypatch, caplog):
-    generator = Mock(side_effect=[workflows.WorkflowError(502, "Inference failed"), "[]", "[]", "[]"])
+    generator = Mock(side_effect=[workflows.WorkflowError(502, "Inference failed"), "[]", "[]", "[]", "[]", "[]"])
     monkeypatch.setattr(workflows, "generate_text", generator)
     with TestClient(backend.app) as client:
         response = client.post("/analyze-event", json={"text": "Text"})
     assert response.json() == {
         "status": "ok", "title": workflows.FALLBACK_TITLE,
-        "results": {"risks": [], "reach": [], "service": []},
+        "results": {"risks": [], "reach": [], "service": [], "properties": [], "protection": []},
     }
-    assert generator.call_count == 4
+    assert generator.call_count == 6
     assert len({id(call.args[1]) for call in generator.call_args_list}) == 1
     assert "using fallback" in caplog.text

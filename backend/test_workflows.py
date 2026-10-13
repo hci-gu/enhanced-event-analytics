@@ -28,6 +28,8 @@ def categories():
     (workflows.categorize_risks, "riskområden", workflows.RISK_SYSTEM_PROMPT),
     (workflows.categorize_reach, "räckviddsnivåer", workflows.REACH_SYSTEM_PROMPT),
     (workflows.categorize_service, "verksamheter", workflows.SERVICE_SYSTEM_PROMPT),
+    (workflows.categorize_properties, "egenskaper", workflows.PROPERTIES_SYSTEM_PROMPT),
+    (workflows.categorize_protection, "skyddsvärden", workflows.PROTECTION_SYSTEM_PROMPT),
 ])
 def test_category_matches(categories, monkeypatch, output, expected, function, options_key, prompt):
     generator = Mock(return_value=output)
@@ -57,6 +59,7 @@ def test_category_matches(categories, monkeypatch, output, expected, function, o
 ])
 @pytest.mark.parametrize("function", [
     workflows.categorize_risks, workflows.categorize_reach, workflows.categorize_service,
+    workflows.categorize_properties, workflows.categorize_protection,
 ])
 def test_invalid_model_output(categories, monkeypatch, output, function):
     generator = Mock(return_value=output)
@@ -109,19 +112,24 @@ def test_generation_errors_are_not_retried(categories, monkeypatch, status):
 
 
 def test_registered_workflows_have_separate_prompts_and_categories(monkeypatch):
-    generator = Mock(side_effect=["Testhändelse", "[]", "[]", "[]"])
+    generator = Mock(side_effect=["Testhändelse", "[]", "[]", "[]", "[]", "[]"])
     monkeypatch.setattr(workflows, "generate_text", generator)
     categories = workflows.load_workflow_categories()
-    assert set(categories) == {"risks", "reach", "service"}
+    assert list(categories) == ["risks", "reach", "service", "properties", "protection"]
+    assert len(categories["properties"]) == 15
+    assert len(categories["protection"]) == 5
     runtime = object()
     assert workflows.run_workflows("Event", runtime, categories) == {
-        "title": "Testhändelse", "results": {"risks": [], "reach": [], "service": []},
+        "title": "Testhändelse", "results": {
+            "risks": [], "reach": [], "service": [], "properties": [], "protection": [],
+        },
     }
-    assert generator.call_count == 4
+    assert generator.call_count == 6
     assert generator.call_args_list[0].args[0][0]["content"] == workflows.TITLE_SYSTEM_PROMPT
     prompts = set()
     for call, (name, options_key) in zip(generator.call_args_list[1:], [
         ("risks", "riskområden"), ("reach", "räckviddsnivåer"), ("service", "verksamheter"),
+        ("properties", "egenskaper"), ("protection", "skyddsvärden"),
     ]):
         messages, actual_runtime = call.args
         assert actual_runtime is runtime
@@ -131,16 +139,18 @@ def test_registered_workflows_have_separate_prompts_and_categories(monkeypatch):
             category.ID for category in categories[name]
         }
         assert all(set(item) == {"ID", "description"} for item in payload[options_key])
-    assert len(prompts) == 3
+    assert len(prompts) == 5
 
 
-@pytest.mark.parametrize("function,wrong_id", [
-    (workflows.categorize_reach, "vatten_va"),
-    (workflows.categorize_service, "2._lokalt"),
+@pytest.mark.parametrize("name,wrong_id", [
+    ("reach", "vatten_va"),
+    ("service", "2._lokalt"),
+    ("properties", "samhällets_funktionalitet"),
+    ("protection", "varaktighet"),
 ])
-def test_ids_from_other_workflow_are_rejected(monkeypatch, function, wrong_id):
+def test_ids_from_other_workflow_are_rejected(monkeypatch, name, wrong_id):
     monkeypatch.setattr(workflows, "generate_text", Mock(return_value=json.dumps([{"ID": wrong_id}])))
-    name = "reach" if function is workflows.categorize_reach else "service"
+    function = workflows.WORKFLOWS[name].function
     categories = workflows.load_workflow_categories()[name]
     with pytest.raises(workflows.WorkflowError) as error:
         function("Event", object(), categories)

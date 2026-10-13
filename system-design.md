@@ -40,7 +40,7 @@ It has no status row or contribution to category progress.
 ## Backend
 FastAPI exposes `POST /analyze-event`, accepting JSON with a non-empty `text`
 string. It trims the text and currently returns
-`{"status":"ok","title":"Händelserubrik","results":{"risks":[],"reach":[],"service":[]}}`.
+`{"status":"ok","title":"Händelserubrik","results":{"risks":[],"reach":[],"service":[],"properties":[],"protection":[]}}`.
 Each workflow's list may contain zero, one, or multiple matches, each with `ID`
 and display `name`. Invalid text returns HTTP 422.
 
@@ -57,10 +57,14 @@ title, strips surrounding quotes/whitespace and validates 1–10 words using Pyd
 without truncation. Overlong titles use the fallback. Generation allows
 64 output tokens. Inference failure or unusable output logs a warning and falls
 back to `Händelseanalys` without retrying; 413/503 errors still stop analysis.
-The risk, reach, and service workflows each use their own Swedish system prompt
+The risk, reach, service, properties, and protection workflows each use their own Swedish system prompt
 and the matching category file in `backend/schemas/`. Each evaluates all of its
 IDs and descriptions in one Gemma generation call, reusing the same processor and
-model instance. The registry runs the workflows in order and combines their results. Definitions
+model instance. Properties selects supported characteristics of the event's
+development; assessment examples guide category selection without adding output
+fields. Protection selects affected or explicitly threatened protection values.
+Both use the existing category and evidence result format. The registry runs
+risks, reach, service, properties, then protection and combines their results. Definitions
 are validated once at startup; returned IDs are validated and mapped to display
 names. Each categorization call also returns supporting quotes; only nonblank exact
 substrings are retained and deduplicated. Invalid evidence is logged and omitted,

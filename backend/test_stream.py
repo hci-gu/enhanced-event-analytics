@@ -67,12 +67,16 @@ def test_stream_endpoint_contract_and_existing_json_endpoint(loaders, monkeypatc
         {"id": "risks", "label": "Riskområden"},
         {"id": "reach", "label": "Räckvidd"},
         {"id": "service", "label": "Verksamheter"},
+        {"id": "properties", "label": "Egenskaper"},
+        {"id": "protection", "label": "Skyddsvärden"},
     ]})
     assert events[1] == ("title_completed", {"title": "Testhändelse"})
     assert [name for name, _ in events] == ["analysis_started", "title_completed"] + [
         "workflow_started", "workflow_completed",
-    ] * 3 + ["analysis_completed"]
-    assert ordinary.json() == {"status": "ok", "title": "Testhändelse", "results": {"risks": [], "reach": [], "service": []}}
+    ] * 5 + ["analysis_completed"]
+    assert ordinary.json() == {"status": "ok", "title": "Testhändelse", "results": {
+        "risks": [], "reach": [], "service": [], "properties": [], "protection": [],
+    }}
     assert UUID(ordinary.headers["x-analysis-id"]).version == 4
     assert ordinary.headers["x-analysis-id"] != analysis_id
 
@@ -80,12 +84,12 @@ def test_stream_endpoint_contract_and_existing_json_endpoint(loaders, monkeypatc
 @pytest.mark.parametrize("path", ["/analyze-event", "/analyze-event/stream"])
 @pytest.mark.parametrize("recovered", [True, False])
 def test_category_retry_endpoint_contract(loaders, monkeypatch, path, recovered):
-    outputs = ["invalid", "[]", "[]", "[]"] if recovered else ["invalid", "invalid"]
+    outputs = ["invalid", "[]", "[]", "[]", "[]", "[]"] if recovered else ["invalid", "invalid"]
     generator = Mock(side_effect=outputs)
     monkeypatch.setattr(workflows, "generate_text", generator)
     with TestClient(backend.app) as client:
         response = client.post(path, json={"text": "Text"})
-    assert generator.call_count == (4 if recovered else 2)
+    assert generator.call_count == (6 if recovered else 2)
     if path.endswith("/stream"):
         events = parse_events(response)
         assert events[-1][0] == ("analysis_completed" if recovered else "workflow_failed")
@@ -152,6 +156,8 @@ def test_stream_validation_before_inference(loaders, monkeypatch, payload):
 def test_stream_evidence_and_json_compatibility(loaders, monkeypatch):
     monkeypatch.setattr(workflows, "generate_text", Mock(side_effect=[
         '[{"ID":"översvämningar","evidence":["Vatten", "påhittat"]}]', '[]', '[]',
+        '[{"ID":"riktning","evidence":["stiger", "påhittat"]}]',
+        '[{"ID":"människors_liv_och_hälsa","evidence":["Vatten", "påhittat"]}]',
     ] * 2))
     with TestClient(backend.app) as client:
         streamed = client.post("/analyze-event/stream", json={"text": "Vatten stiger"})
@@ -159,3 +165,11 @@ def test_stream_evidence_and_json_compatibility(loaders, monkeypatch):
     match = {"ID": "översvämningar", "name": "Översvämningar"}
     assert parse_events(streamed)[3][1]["results"] == [{**match, "evidence": ["Vatten"]}]
     assert ordinary.json()["results"]["risks"] == [match]
+    for name, index, match, quote in [
+        ("properties", 9, {"ID": "riktning", "name": "Riktning"}, "stiger"),
+        ("protection", 11, {"ID": "människors_liv_och_hälsa", "name": "Människors liv och hälsa"}, "Vatten"),
+    ]:
+        assert parse_events(streamed)[index] == ("workflow_completed", {
+            "id": name, "results": [{**match, "evidence": [quote]}],
+        })
+        assert ordinary.json()["results"][name] == [match]

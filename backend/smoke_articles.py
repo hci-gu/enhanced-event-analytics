@@ -27,7 +27,7 @@ def main():
 
     directory = Path(__file__).parent
     names_by_workflow = {}
-    for name in ("risks", "reach", "service"):
+    for name in ("risks", "reach", "service", "properties", "protection"):
         categories = json.loads((directory / "schemas" / f"{name}.json").read_text(encoding="utf-8"))
         names_by_workflow[name] = {category["ID"]: category["name"] for category in categories}
     for filename in ("test-event.txt", "test-event2.txt"):

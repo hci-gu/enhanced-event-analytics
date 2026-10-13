@@ -72,7 +72,7 @@ def test_invalid_retry_limit_prevents_model_loading(loaders, monkeypatch, value)
 
 
 def test_requests_share_runtime_and_cleanup(loaders, monkeypatch):
-    empty_results = {"risks": [], "reach": [], "service": []}
+    empty_results = {"risks": [], "reach": [], "service": [], "properties": [], "protection": []}
     runner = Mock(return_value={"title": "Testhändelse", "results": empty_results})
     monkeypatch.setattr(backend, "run_workflows", runner)
     with TestClient(backend.app) as client:
@@ -117,6 +117,7 @@ def test_article_endpoint_contract(loaders, monkeypatch, article):
     generator = Mock(side_effect=[
         "Testhändelse",
         '[{"ID":"översvämningar"}]', '[{"ID":"2._lokalt"}]', '[{"ID":"vatten_va"}]',
+        '[{"ID":"varaktighet"}]', '[{"ID":"samhällets_funktionalitet"}]',
     ] * 2)
     monkeypatch.setattr(workflows, "generate_text", generator)
     text = (Path(__file__).parent.parent / "data" / article).read_text(encoding="utf-8")
@@ -132,11 +133,13 @@ def test_article_endpoint_contract(loaders, monkeypatch, article):
                     "risks": [{"ID": "översvämningar", "name": "Översvämningar"}],
                     "reach": [{"ID": "2._lokalt", "name": "2. Lokalt"}],
                     "service": [{"ID": "vatten_va", "name": "Vatten/VA"}],
+                    "properties": [{"ID": "varaktighet", "name": "Varaktighet"}],
+                    "protection": [{"ID": "samhällets_funktionalitet", "name": "Samhällets funktionalitet"}],
                 },
             }
             assert backend.app.state.runtime is runtime
     # This validates the API plumbing, not the article's actual classification.
-    assert generator.call_count == 8
+    assert generator.call_count == 12
     loaders[1].assert_called_once()
 
 

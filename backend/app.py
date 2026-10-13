@@ -141,11 +141,13 @@ class AnalyzeEventResponse(BaseModel):
     status: Literal["ok"] = "ok"
     title: str = Field(description="Generated Swedish event title containing 1–10 words")
     results: dict[str, Any] = Field(
-        description="Results keyed by risks, reach and service; each contains matched IDs and display names",
+        description="Results keyed by risks, reach, service, properties and protection; each contains matched IDs and display names",
         examples=[{
             "risks": [{"ID": "översvämningar", "name": "Översvämningar"}],
             "reach": [{"ID": "2._lokalt", "name": "2. Lokalt"}],
             "service": [{"ID": "vatten_va", "name": "Vatten/VA"}],
+            "properties": [{"ID": "varaktighet", "name": "Varaktighet"}],
+            "protection": [{"ID": "samhällets_funktionalitet", "name": "Samhällets funktionalitet"}],
         }],
     )
 
@@ -154,7 +156,7 @@ class AnalyzeEventResponse(BaseModel):
     "/analyze-event",
     response_model=AnalyzeEventResponse,
     description=(
-        "Generate a Swedish title, then categorize event text by risks, reach and services using the shared model. "
+        "Generate a Swedish title, then categorize event text by risks, reach, services, properties and protection values using the shared model. "
         "Each workflow returns zero, one, or multiple matches with IDs and display names."
     ),
     responses={

@@ -1,0 +1,27 @@
+[
+  {
+    "ID": "människors_liv_och_hälsa",
+    "name": "Människors liv och hälsa",
+    "description": "Fysisk och psykisk hälsa, säkerhet samt risk för dödsfall, skador eller annan negativ påverkan på människor."
+  },
+  {
+    "ID": "samhällets_funktionalitet",
+    "name": "Samhällets funktionalitet",
+    "description": "Förmågan att upprätthålla verksamheter, tjänster och infrastrukturer som människor och organisationer är beroende av."
+  },
+  {
+    "ID": "demokrati,_rättssäkerhet_och_mänskliga_fri-_och_rättigheter",
+    "name": "Demokrati, rättssäkerhet och mänskliga fri- och rättigheter",
+    "description": "Fungerande demokratiska institutioner, rättssäker myndighetsutövning, förtroende och respekt för grundläggande fri- och rättigheter."
+  },
+  {
+    "ID": "miljö_och_ekonomiska_värden",
+    "name": "Miljö och ekonomiska värden",
+    "description": "Naturmiljö, kulturmiljö, egendom, ekonomiska resurser samt möjligheten att producera varor och tjänster."
+  },
+  {
+    "ID": "nationell_suveränitet",
+    "name": "Nationell suveränitet",
+    "description": "Sveriges förmåga att upprätthålla kontroll över territorium, samhällsstyrning och nationellt beslutsfattande."
+  }
+]
