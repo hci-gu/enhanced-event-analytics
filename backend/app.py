@@ -4,7 +4,7 @@ import json
 import logging
 import os
 from _thread import LockType
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from threading import Lock
@@ -56,37 +56,69 @@ class ModelRuntime:
     retry_limit: int = 1
 
 
+@contextmanager
+def loading_stage(stage: str, *, device: str | None = None):
+    if not logger.isEnabledFor(logging.DEBUG):
+        yield
+        return
+    started = perf_counter()
+    logger.debug("Loading stage=%s status=started", stage)
+    try:
+        yield
+        if device == "cuda":
+            torch.cuda.synchronize()
+    except Exception:
+        logger.debug(
+            "Loading stage=%s status=failed duration_seconds=%.6f",
+            stage, perf_counter() - started,
+        )
+        raise
+    else:
+        logger.debug(
+            "Loading stage=%s status=completed duration_seconds=%.6f",
+            stage, perf_counter() - started,
+        )
+
+
 def load_runtime() -> ModelRuntime:
     retry_limit = load_retry_limit()
     model_id = os.environ.get("MODEL_ID", "").strip()
     if not model_id:
         raise RuntimeError("MODEL_ID must identify a Hugging Face model or local directory")
 
-    device = os.environ.get("MODEL_DEVICE", "auto")
-    if device not in {"auto", "cpu", "cuda"}:
-        raise RuntimeError("MODEL_DEVICE must be auto, cpu, or cuda")
-    if device in {"auto", "cuda"}:
-        cuda_available = torch.cuda.is_available()
-        if device == "cuda" and not cuda_available:
-            raise RuntimeError("MODEL_DEVICE=cuda requires an available CUDA device")
-        device = "cuda" if cuda_available else "cpu"
+    with loading_stage("device_selection"):
+        device = os.environ.get("MODEL_DEVICE", "auto")
+        if device not in {"auto", "cpu", "cuda"}:
+            raise RuntimeError("MODEL_DEVICE must be auto, cpu, or cuda")
+        if device in {"auto", "cuda"}:
+            cuda_available = torch.cuda.is_available()
+            if device == "cuda" and not cuda_available:
+                raise RuntimeError("MODEL_DEVICE=cuda requires an available CUDA device")
+            device = "cuda" if cuda_available else "cpu"
 
     started = perf_counter()
     logger.info("Model loading started (model_id=%s, device=%s)", model_id, device)
     try:
-        config = AutoConfig.from_pretrained(model_id)
+        with loading_stage("config"):
+            config = AutoConfig.from_pretrained(model_id)
         processor = None
         if config.model_type == "gemma4":
-            processor = AutoProcessor.from_pretrained(model_id)
-            tokenizer = processor.tokenizer
-            model = Gemma4ForConditionalGeneration.from_pretrained(
-                model_id, config=config, dtype="auto"
-            )
+            with loading_stage("processor"):
+                processor = AutoProcessor.from_pretrained(model_id)
+                tokenizer = processor.tokenizer
+            with loading_stage("weights"):
+                model = Gemma4ForConditionalGeneration.from_pretrained(
+                    model_id, config=config, dtype="auto"
+                )
         else:
-            tokenizer = AutoTokenizer.from_pretrained(model_id)
-            model = AutoModel.from_pretrained(model_id, config=config)
-        model.to(device)
-        model.eval()
+            with loading_stage("tokenizer"):
+                tokenizer = AutoTokenizer.from_pretrained(model_id)
+            with loading_stage("weights"):
+                model = AutoModel.from_pretrained(model_id, config=config)
+        with loading_stage("device_placement", device=device):
+            model.to(device)
+        with loading_stage("eval"):
+            model.eval()
     except Exception as exc:
         logger.exception(
             "Model loading failed after %.2fs (model_id=%s, device=%s)",
@@ -107,7 +139,8 @@ def load_runtime() -> ModelRuntime:
 async def lifespan(app: FastAPI):
     load_dotenv(dotenv_path=Path(__file__).with_name(".env"), override=False)
     configure_logging()
-    categories = load_workflow_categories()
+    with loading_stage("categories"):
+        categories = load_workflow_categories()
     app.state.runtime = load_runtime()
     app.state.workflow_categories = categories
     try:

@@ -44,6 +44,15 @@ selected IDs, or title fallback. `retries=0` with `output_valid=true` means the
 first attempt passed validation. Each additional category generation increments
 the retry count, and invalid output logs whether the retry limit is exhausted.
 DEBUG does not enable logging for third-party libraries.
+DEBUG also logs loading-stage start, completion/failure, and `duration_seconds`
+for category definitions, device selection, model configuration, processor (Gemma) or tokenizer
+(other models), weights, device placement, and evaluation mode. CUDA device
+placement is synchronized before its timer finishes. The weights stage includes
+everything inside `from_pretrained()`, including checkpoint reading and model
+construction. INFO retains the overall model-loading duration without stage logs
+or the additional CUDA synchronization. Transformers 5.19 (the locked version)
+already loads weights asynchronously by default; the older
+`HF_ENABLE_PARALLEL_LOADING` flag is not used by that version.
 
 `RETRY_LIMIT` defaults to `1` and must be a non-negative integer. Each category
 workflow may retry malformed JSON or invalid category IDs this many times,

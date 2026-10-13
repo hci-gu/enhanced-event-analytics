@@ -44,6 +44,40 @@ def test_log_level_configuration(loaders, monkeypatch, value, expected):
         assert logging.getLogger("uvicorn.access").getEffectiveLevel() == expected
 
 
+@pytest.mark.parametrize("model_type", ["bert", "gemma4"])
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.parametrize("level", ["INFO", "DEBUG"])
+def test_loading_stage_timings(loaders, monkeypatch, caplog, model_type, device, level):
+    monkeypatch.setenv("LOG_LEVEL", level)
+    monkeypatch.setenv("MODEL_DEVICE", device)
+    monkeypatch.setattr(backend.torch.cuda, "is_available", Mock(return_value=True))
+    synchronize = Mock()
+    monkeypatch.setattr(backend.torch.cuda, "synchronize", synchronize)
+    backend.AutoConfig.from_pretrained.return_value.model_type = model_type
+    monkeypatch.setattr(backend.AutoProcessor, "from_pretrained", Mock(return_value=Mock()))
+    monkeypatch.setattr(backend.Gemma4ForConditionalGeneration, "from_pretrained", Mock(return_value=Mock()))
+    clock = Mock(side_effect=range(100))
+    monkeypatch.setattr(backend, "perf_counter", clock)
+    with caplog.at_level(level, logger=backend.logger.name):
+        with TestClient(backend.app):
+            pass
+    records = [record.getMessage() for record in caplog.records if record.name == backend.logger.name]
+    if level == "DEBUG":
+        stages = ["categories", "device_selection", "config", "processor" if model_type == "gemma4" else "tokenizer",
+                  "weights", "device_placement", "eval"]
+        assert [message for message in records if message.startswith("Loading stage=")] == [
+            message for stage in stages for message in [
+                f"Loading stage={stage} status=started",
+                f"Loading stage={stage} status=completed duration_seconds=1.000000",
+            ]
+        ]
+    else:
+        assert not any(message.startswith("Loading stage=") for message in records)
+        assert clock.call_count == 2
+    assert any(message.startswith("Model loading finished in") for message in records)
+    assert synchronize.call_count == (1 if device == "cuda" and level == "DEBUG" else 0)
+
+
 def test_invalid_log_level_prevents_model_loading(loaders, monkeypatch):
     monkeypatch.setenv("LOG_LEVEL", "invalid")
     with pytest.raises(RuntimeError, match="LOG_LEVEL must"):
@@ -238,7 +272,8 @@ def test_invalid_device(loaders, monkeypatch, device, message):
 
 
 @pytest.mark.parametrize("stage", ["tokenizer", "model", "to", "eval"])
-def test_model_loading_failure(loaders, stage):
+def test_model_loading_failure(loaders, stage, monkeypatch, caplog):
+    monkeypatch.setenv("LOG_LEVEL", "DEBUG")
     failing_call = {
         "tokenizer": loaders[0], "model": loaders[1],
         "to": loaders[1].return_value.to, "eval": loaders[1].return_value.eval,
@@ -250,6 +285,9 @@ def test_model_loading_failure(loaders, stage):
             pass
     assert error.value.__cause__ is failure
     assert not hasattr(backend.app.state, "runtime")
+    loading_stage = {"tokenizer": "tokenizer", "model": "weights", "to": "device_placement", "eval": "eval"}[stage]
+    assert f"Loading stage={loading_stage} status=failed duration_seconds=" in caplog.text
+    assert f"Loading stage={loading_stage} status=completed" not in caplog.text
 
 
 def test_cleanup_after_request_error(loaders, monkeypatch):
