@@ -126,7 +126,8 @@ metadata and do not replace this identifier. UUIDs are retained for future stora
 neither titles nor identifiers are persisted yet.
 
 The evidence-linked summary and LLM title generation milestones are implemented.
-A sidebar to switch event analyses remains future work. PocketBase persistence remains unimplemented;
+A sidebar to switch event analyses remains future work. A versioned PocketBase Analysis collection exists,
+but backend record writes remain unimplemented;
 the diagram below describes the intended architecture.
 
 ![backend](assets/system-backend.png)
@@ -136,4 +137,11 @@ Data layer using Pocketbase, serving using Go.
 
 Collections
 - Events (event_id, group_id: nullable, text)
-- Analysis ()
+- Analysis (`analysis_id`: unique backend UUID v4, `status`: Processing/Failed/Complete,
+  independent `embedding_status`: Processing/Failed/Complete, required `original_text`,
+  `title`, `predictions`: workflow-keyed JSON including evidence, `error`: failure JSON,
+  automatic `created`/`updated` timestamps, optional `finished_at` for the category
+  analysis terminal time). Record API access is superuser-only.
+  Backend persistence must mark Failed if any category workflow fails and retain
+  completed predictions; embedding failures are tracked separately. See
+  [PocketBase schema and lifecycle](pocketbase/README.md).
