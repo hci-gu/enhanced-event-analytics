@@ -8,14 +8,22 @@ import app as backend
 import workflows
 
 
+EMBEDDING = {
+    "vector": [1.0] + [0.0] * 767, "model_id": "google/embeddinggemma-2", "task": "document",
+    "dimensions": 768, "normalized": True, "truncated": False, "input_tokens": 10, "embedded_tokens": 10,
+}
+
+
 @pytest.fixture
 def loaders(monkeypatch):
+    monkeypatch.setattr(backend, "load_embedding_runtime", Mock(return_value=Mock(model_id="google/embeddinggemma-2")))
+    monkeypatch.setattr(backend, "embed_document", Mock(return_value=EMBEDDING))
     monkeypatch.setattr(backend, "load_dotenv", Mock())
     monkeypatch.delenv("LOG_LEVEL", raising=False)
     monkeypatch.delenv("RETRY_LIMIT", raising=False)
     for name in (
         "uvicorn", "uvicorn.error", "uvicorn.access",
-        "uvicorn.error.app", "uvicorn.error.workflows",
+        "uvicorn.error.app", "uvicorn.error.workflows", "uvicorn.error.embeddings",
     ):
         target = logging.getLogger(name)
         monkeypatch.setattr(target, "level", target.level)
@@ -118,12 +126,15 @@ def test_requests_share_runtime_and_cleanup(loaders, monkeypatch):
             "model_id": "test/model",
             "device": "cpu",
             "model_loaded": True,
+            "embedding_model_id": "google/embeddinggemma-2",
+            "embedding_model_loaded": True,
         }
         runner.assert_not_called()
         for _ in range(2):
             response = client.post("/analyze-event", json={"text": "  Swedish event  "})
             assert response.status_code == 200
-            assert response.json() == {"status": "ok", "title": "Testhändelse", "results": empty_results}
+            assert response.json() == {"status": "ok", "title": "Testhändelse", "results": empty_results,
+                                       "embedding": EMBEDDING, "embedding_error": None}
         assert runner.call_count == 2
         runner.assert_called_with("Swedish event", runtime, backend.app.state.workflow_categories)
         loaders[0].assert_called_once_with("test/model")
@@ -163,6 +174,8 @@ def test_article_endpoint_contract(loaders, monkeypatch, article):
             assert response.json() == {
                 "status": "ok",
                 "title": "Testhändelse",
+                "embedding": EMBEDDING,
+                "embedding_error": None,
                 "results": {
                     "risks": [{"ID": "översvämningar", "name": "Översvämningar"}],
                     "reach": [{"ID": "2._lokalt", "name": "2. Lokalt"}],

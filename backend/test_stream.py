@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 import app as backend
 import workflows
-from test_app import loaders
+from test_app import EMBEDDING, loaders
 
 
 @pytest.fixture(autouse=True)
@@ -74,7 +74,9 @@ def test_stream_endpoint_contract_and_existing_json_endpoint(loaders, monkeypatc
     assert [name for name, _ in events] == ["analysis_started", "title_completed"] + [
         "workflow_started", "workflow_completed",
     ] * 5 + ["analysis_completed"]
-    assert ordinary.json() == {"status": "ok", "title": "Testhändelse", "results": {
+    assert events[-1] == ("analysis_completed", {"embedding": EMBEDDING, "embedding_error": None})
+    assert ordinary.json() == {"status": "ok", "title": "Testhändelse", "embedding": EMBEDDING,
+                              "embedding_error": None, "results": {
         "risks": [], "reach": [], "service": [], "properties": [], "protection": [],
     }}
     assert UUID(ordinary.headers["x-analysis-id"]).version == 4

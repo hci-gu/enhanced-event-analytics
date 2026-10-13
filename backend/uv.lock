@@ -246,7 +246,7 @@ requires-dist = [
     { name = "torch", marker = "extra == 'cuda'", specifier = ">=2.6", index = "https://download.pytorch.org/whl/cu128", conflict = { package = "enhanced-event-analytics", extra = "cuda" } },
     { name = "torchvision", marker = "extra == 'cpu'", specifier = ">=0.21", index = "https://download.pytorch.org/whl/cpu", conflict = { package = "enhanced-event-analytics", extra = "cpu" } },
     { name = "torchvision", marker = "extra == 'cuda'", specifier = ">=0.21", index = "https://download.pytorch.org/whl/cu128", conflict = { package = "enhanced-event-analytics", extra = "cuda" } },
-    { name = "transformers", specifier = ">=5.7,<6" },
+    { name = "transformers", specifier = ">=5.19.0,<6" },
 ]
 provides-extras = ["cpu", "cuda"]
 

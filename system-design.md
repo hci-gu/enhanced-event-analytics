@@ -47,12 +47,42 @@ string. It trims the text and currently returns
 `{"status":"ok","title":"Händelserubrik","results":{"risks":[],"reach":[],"service":[],"properties":[],"protection":[]}}`.
 Each workflow's list may contain zero, one, or multiple matches, each with `ID`
 and display `name`. Invalid text returns HTTP 422.
+Successful responses also include `embedding` and `embedding_error` fields.
 
 The lifespan loads a configurable Transformers tokenizer and base model once
 per server process into `app.state.runtime`. `MODEL_ID` selects a Hugging Face
 model or local directory; `MODEL_DEVICE=auto|cpu|cuda` selects its device.
 Each server worker loads its own model. CPU and CUDA 12.8 dependency profiles
 are managed with uv extras; see [backend setup](backend/README.md).
+
+Startup additionally loads text-only `google/embeddinggemma-2` using Transformers
+5.19+, with audio and vision towers disabled, onto the same resolved device as
+the LLM. Both models are required for startup. Embeddings use bfloat16 on
+compatible CUDA hardware, otherwise float32. INFO logs record embedding model
+load start and completion with duration, model ID, device, and dtype. DEBUG logs
+record full/embedded token counts, truncation, embedding duration, and status;
+CUDA timing synchronization is enabled only at DEBUG. Input text and vectors
+are not logged.
+
+`POST /embed-event` accepts the same text payload and returns a normalized
+768-dimensional document embedding with model/task/dimension metadata, token
+counts, and a truncation flag. The document prefix is `title: none | text: `;
+no generated title is needed. Inputs are right-truncated to 8192 tokens including
+prefix and special tokens. Attention-mask-aware mean pooling of projected token
+representations and L2 normalization run in float32. Invalid vectors or inference
+failures return 502. Query and other embedding tasks remain future work.
+
+Both analysis endpoints submit embedding work before title generation to a
+lifespan-managed single-worker executor. Its separate model lock allows overlap
+with LLM inference while serializing embeddings. JSON responses and the existing
+`analysis_completed` stream payload return the vector only at completion, with
+`embedding_error: null`. Embedding failures preserve successful classification
+with `embedding: null` and a structured 502 embedding error. Analysis failures
+retain existing terminal behavior. Queued embedding work is cancelled on failure
+or stream closure; running inference may finish with its result discarded.
+Shutdown waits for active embedding work before releasing the runtimes.
+The frontend accepts but does not retain these additional fields. No text/vector
+persistence, related-event search, clustering, or graph storage is implemented.
 
 `workflows.py` defines independent workflow functions and the `WORKFLOWS` registry.
 A fixed `generate_title` step outside the registry runs before categorization,

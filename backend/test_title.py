@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 
 import app as backend
 import workflows
-from test_app import loaders
+from test_app import EMBEDDING, loaders
 from test_workflows import runtime
 
 
@@ -108,6 +108,7 @@ def test_title_failure_falls_back_then_runs_categories(loaders, monkeypatch, cap
         response = client.post("/analyze-event", json={"text": "Text"})
     assert response.json() == {
         "status": "ok", "title": workflows.FALLBACK_TITLE,
+        "embedding": EMBEDDING, "embedding_error": None,
         "results": {"risks": [], "reach": [], "service": [], "properties": [], "protection": []},
     }
     assert generator.call_count == 6

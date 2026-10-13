@@ -61,7 +61,7 @@ With `1`, two invalid responses return HTTP 502; `0` disables retries. Configure
 it in `.env` and restart. Invalid values prevent model loading. Inference failures,
 input-limit errors, and unsupported models are not retried. Invalid evidence is
 still discarded rather than retried, and the title retains its existing fallback.
-Gemma 4 uses Transformers 5.7+ with `AutoProcessor` and
+The backend requires Transformers 5.19+ (below 6). Gemma 4 uses `AutoProcessor` and
 `Gemma4ForConditionalGeneration`; the processor is available as
 `app.state.runtime.processor` for chat-template preparation. Its tokenizer is
 also available through `app.state.runtime.tokenizer`. Checkpoints are loaded
@@ -76,6 +76,21 @@ the model to the selected device, and enables evaluation mode. They stay in
 `app.state.runtime` until shutdown. Each Uvicorn worker loads its own copy, so
 start with one worker to avoid multiplying RAM/VRAM usage.
 
+Startup also loads `google/embeddinggemma-2` into `app.state.embedding_runtime`
+on the LLM's resolved device. Both audio and vision towers are disabled; only
+text embeddings are supported. It uses bfloat16 on CUDA with native support,
+otherwise float32 (never float16). Both models must load successfully before the
+service starts. The first startup may download both checkpoints. Each worker
+holds both model copies, so account for their combined RAM/VRAM requirements.
+Embedding model load start, completion with elapsed time, and model ID/device/dtype
+are logged at INFO; loading failures include exception details.
+DEBUG embedding logs include `input_tokens`, `embedded_tokens`, `truncated`,
+`embedding_seconds`, and completion/failure status. Token counts include the
+document prefix and special tokens. Timing starts after acquiring the embedding
+lock and covers device transfer, inference, pooling, and float32 normalization;
+it excludes queue time, tokenization, and conversion to a JSON vector. CUDA is
+synchronized around that work only at DEBUG. Text and vectors are never logged.
+
 ## API
 
 Interactive documentation: `http://127.0.0.1:8000/docs`.
@@ -84,7 +99,7 @@ Interactive documentation: `http://127.0.0.1:8000/docs`.
 model ID and selected device without running inference. Example:
 
 ```json
-{"status":"ok","model_id":"google/gemma-4-E2B-it","device":"cpu","model_loaded":true}
+{"status":"ok","model_id":"google/gemma-4-E2B-it","device":"cpu","model_loaded":true,"embedding_model_id":"google/embeddinggemma-2","embedding_model_loaded":true}
 ```
 
 ```powershell
@@ -112,7 +127,51 @@ HTTP 422. Each workflow can return zero, one, or multiple matches; no matches
 returns an empty list under that workflow's key. IDs and display names are resolved
 from `schemas/risks.json`, `schemas/reach.json`, `schemas/service.json`,
 `schemas/properties.json`, and `schemas/protection.json`, respectively.
-Persistence is not implemented.
+Persistence is not implemented. Successful analysis responses additionally
+contain `embedding` and `embedding_error`, described below; the category-only
+example above omits those fields for readability.
+
+## Document embeddings
+
+`POST /embed-event` accepts the same trimmed, nonempty `{ "text": "..." }`
+payload (invalid input returns 422) and returns `{ "status": "ok", "embedding": {...} }`.
+The embedding object contains:
+
+| Field | Value |
+| --- | --- |
+| `vector` | 768 finite floating-point numbers, L2-normalized |
+| `model_id` | `google/embeddinggemma-2` |
+| `task` | `document` |
+| `dimensions` | `768` |
+| `normalized` | `true` |
+| `truncated` | Whether the input was shortened |
+| `input_tokens` | Full token count including prefix and special tokens |
+| `embedded_tokens` | Token count actually embedded, at most 8192 |
+
+The text is prefixed with `title: none | text: ` independently of the generated
+analysis title. Overlong documents are right-truncated, preserving special tokens;
+only the beginning is represented. The model's projected token representations
+are mean-pooled using the attention mask and normalized in float32. Nonfinite,
+zero-norm, or incorrectly sized output and inference failures return HTTP 502.
+The endpoint has no query, similarity, or clustering task selection yet.
+
+Both analysis endpoints start the same embedding helper before title generation.
+A single-worker embedding executor and separate lock serialize embedding calls,
+while allowing embedding and LLM inference to overlap on the same device. This
+can increase device load; overlapping requests do not guarantee faster GPU work.
+Category progress proceeds normally, but successful completion waits for the
+embedding. JSON analysis responses and streaming `analysis_completed` payloads
+contain `embedding` plus `embedding_error: null` on success. If embedding fails,
+analysis results remain successful with `embedding: null` and
+`embedding_error: { "code": 502, "message": "Embedding inference failed" }`.
+Analysis failures retain their existing error behavior. Queued embedding work is
+cancelled when analysis fails or a stream closes; running inference can finish,
+with its result discarded. Shutdown cancels queued work and waits for running
+embedding inference before releasing runtimes.
+
+The frontend accepts these completion fields but does not store or display them.
+Text/vector persistence, search-query embeddings, and related-event retrieval are
+future work. Document similarity quality requires separate evaluation.
 
 ## Workflows
 
@@ -186,7 +245,7 @@ Each frame is `event: <name>` followed by `data: <JSON>` and a blank line:
 | `workflow_started` | `{ "id": "risks" }` |
 | `workflow_completed` | `{ "id": "risks", "results": [{ "ID": "...", "name": "...", "evidence": ["exact supporting quote"] }] }` |
 | `workflow_failed` | `{ "id": "risks", "message": "...", "code": 502 }` |
-| `analysis_completed` | `{}` |
+| `analysis_completed` | `{ "embedding": { ... }, "embedding_error": null }` (or a null embedding and structured error) |
 
 The catalog follows registry order; labels default to the registry key when absent.
 After `analysis_started`, title generation runs before any category workflow and
@@ -196,7 +255,8 @@ once received, retaining it if a later workflow fails. UUIDs remain internal
 metadata and are no longer displayed as headings on either screen.
 Completed results may contain an empty list. Streaming workflows must return lists
 of matched IDs and display names. Both endpoints share `iter_workflow_events`;
-inference remains serialized by the existing runtime lock. Each categorization
+LLM inference remains serialized by the existing runtime lock; document embedding
+uses its own runtime and lock. Each categorization
 prompt requests objects with category `ID` and an `evidence` array in the same
 model call. The backend validates IDs, resolves names, and deduplicates quotes.
 Only nonblank exact substrings of the trimmed input are retained: no fuzzy
@@ -224,12 +284,14 @@ the hosting proxy as well. The frontend's `/api` prefix must be stripped.
 ## Verification
 
 ```powershell
-uv run --extra CPU python -m py_compile app.py workflows.py test_app.py test_workflows.py test_stream.py test_title.py smoke_articles.py
+uv run --extra CPU python -m py_compile app.py workflows.py embeddings.py test_app.py test_workflows.py test_stream.py test_title.py test_embeddings.py smoke_articles.py
 uv run --extra CPU python -m pytest
 uv lock --check
 ```
 
-Tests mock model loading and do not download model weights or require a GPU.
+Tests mock both model loading and inference and do not download model weights or require a GPU.
+Embedding tests cover text-only loading, device/dtype selection, truncation,
+pooling/normalization, logging, concurrent analysis, failures, and cleanup.
 They include both `data/` articles to verify endpoint plumbing with mocked outputs;
 those checks do not establish article classification accuracy.
 
