@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -103,6 +104,13 @@ class WorkflowError(Exception):
         self.status_code = status_code
 
 
+def load_retry_limit() -> int:
+    value = os.environ.get("RETRY_LIMIT", "1").strip()
+    if not value.isascii() or not value.isdecimal():
+        raise RuntimeError("RETRY_LIMIT must be a non-negative integer")
+    return int(value)
+
+
 def load_categories(path: Path) -> tuple[Category, ...]:
     try:
         categories = TypeAdapter(list[Category]).validate_json(path.read_text(encoding="utf-8"))
@@ -116,6 +124,8 @@ def load_categories(path: Path) -> tuple[Category, ...]:
 def generate_text(
     messages: list[dict[str, str]], runtime: "ModelRuntime", *,
     max_new_tokens: int = MAX_OUTPUT_TOKENS,
+    workflow_name: str = "generation",
+    retries: int = 0,
 ) -> str:
     if runtime.processor is None or not runtime.model.can_generate():
         raise WorkflowError(503, "The loaded model does not support this generation workflow")
@@ -134,15 +144,31 @@ def generate_text(
             if input_length > MAX_INPUT_TOKENS:
                 raise WorkflowError(413, "Event and workflow instructions exceed 8192 tokens")
             inputs = inputs.to(runtime.device)
+            debug_metrics = logger.isEnabledFor(logging.DEBUG)
+            if debug_metrics and runtime.device == "cuda":
+                torch.cuda.synchronize()
+            generation_started = perf_counter()
             output = runtime.model.generate(
                 **inputs, max_new_tokens=max_new_tokens, do_sample=False
             )
+            if debug_metrics:
+                if runtime.device == "cuda":
+                    torch.cuda.synchronize()
+                generation_seconds = perf_counter() - generation_started
+                output_tokens = output.shape[-1] - input_length
+                logger.debug(
+                    "LLM call workflow=%s input_tokens=%d output_tokens=%d "
+                    "generation_seconds=%.6f tokens_per_second=%.2f retries=%d status=generated",
+                    workflow_name, input_length, output_tokens, generation_seconds,
+                    output_tokens / generation_seconds if generation_seconds > 0 else 0.0, retries,
+                )
             return runtime.processor.decode(
                 output[0, input_length:], skip_special_tokens=True
             )
     except WorkflowError:
         raise
     except Exception as exc:
+        logger.debug("LLM call workflow=%s status=failed retries=%d", workflow_name, retries, exc_info=True)
         raise WorkflowError(502, "Model inference failed") from exc
 
 
@@ -154,15 +180,18 @@ def generate_title(text: str, runtime: "ModelRuntime") -> str:
             output = generate_text([
                 {"role": "system", "content": TITLE_SYSTEM_PROMPT},
                 {"role": "user", "content": json.dumps({"händelsetext": text}, ensure_ascii=False)},
-            ], runtime, max_new_tokens=TITLE_OUTPUT_TOKENS)
+            ], runtime, max_new_tokens=TITLE_OUTPUT_TOKENS, workflow_name="title")
             try:
-                return TitleOutput(title=output).title
+                title = TitleOutput(title=output).title
+                logger.debug("Workflow title output_valid=true retries=0 fallback=false")
+                return title
             except ValidationError as exc:
                 raise WorkflowError(502, "Title workflow returned an unusable title") from exc
         except WorkflowError as exc:
             if exc.status_code != 502:
                 raise
             logger.warning("Title generation failed; using fallback: %s", exc)
+            logger.debug("Workflow title output_valid=false retries=0 fallback=true")
             return FALLBACK_TITLE
     finally:
         logger.info("Workflow 'title' finished in %.2fs", perf_counter() - started)
@@ -186,6 +215,26 @@ def categorize_service(
     return _categorize(text, runtime, categories, SERVICE_SYSTEM_PROMPT, "verksamheter", "Service")
 
 
+def _parse_category_output(
+    response: str, categories: tuple[Category, ...], workflow_name: str,
+) -> list[dict[str, Any]]:
+    response = response.strip()
+    fenced = re.fullmatch(r"```(?:json)?\s*(.*?)\s*```", response, flags=re.DOTALL)
+    if fenced:
+        response = fenced.group(1)
+    try:
+        matches = json.loads(response)
+    except ValueError as exc:
+        raise WorkflowError(502, f"{workflow_name} workflow returned invalid JSON") from exc
+    allowed_ids = {category.ID for category in categories}
+    if not isinstance(matches, list) or any(
+        not isinstance(match, dict) or not isinstance(match.get("ID"), str)
+        or match["ID"] not in allowed_ids for match in matches
+    ):
+        raise WorkflowError(502, f"{workflow_name} workflow returned invalid category IDs")
+    return matches
+
+
 def _categorize(
     text: str,
     runtime: "ModelRuntime",
@@ -204,21 +253,31 @@ def _categorize(
             ),
         },
     ]
-    response = generate_text(messages, runtime).strip()
-    fenced = re.fullmatch(r"```(?:json)?\s*(.*?)\s*```", response, flags=re.DOTALL)
-    if fenced:
-        response = fenced.group(1)
-    try:
-        matches = json.loads(response)
-    except ValueError as exc:
-        raise WorkflowError(502, f"{workflow_name} workflow returned invalid JSON") from exc
-
-    allowed_ids = {category.ID for category in categories}
-    if not isinstance(matches, list) or any(
-        not isinstance(match, dict) or not isinstance(match.get("ID"), str)
-        or match["ID"] not in allowed_ids for match in matches
-    ):
-        raise WorkflowError(502, f"{workflow_name} workflow returned invalid category IDs")
+    retry_limit = getattr(runtime, "retry_limit", 1)
+    for retries in range(retry_limit + 1):
+        response = generate_text(messages, runtime, workflow_name=workflow_name, retries=retries)
+        try:
+            matches = _parse_category_output(response, categories, workflow_name)
+            break
+        except WorkflowError as exc:
+            reason = "invalid_json" if isinstance(exc.__cause__, json.JSONDecodeError) else "invalid_category_ids"
+            logger.debug(
+                "Workflow %s output_valid=false retries=%d reason=%s exhausted=%s",
+                workflow_name, retries, reason, retries == retry_limit,
+            )
+            if retries == retry_limit:
+                raise
+            correction = (
+                "Ditt föregående svar var inte giltig JSON."
+                if reason == "invalid_json" else
+                "Ditt föregående svar innehöll ogiltiga kategori-ID:n eller fel struktur."
+            )
+            messages = [
+                {"role": "system", "content": system_prompt + " " + correction +
+                 ' Svara endast med en JSON-array av objekt med "ID" och "evidence". '
+                 "Använd endast kategori-ID:n från de angivna kategorierna, eller [] om inget matchar."},
+                messages[1],
+            ]
     selected: dict[str, list[str]] = {}
     for match in matches:
         evidence = selected.setdefault(match["ID"], [])
@@ -231,8 +290,14 @@ def _categorize(
                 logger.warning("%s workflow rejected unmatched evidence for %s", workflow_name, match["ID"])
             elif quote not in evidence:
                 evidence.append(quote)
-    return [{"ID": category.ID, "name": category.name, "evidence": selected[category.ID]}
-            for category in categories if category.ID in selected]
+    results = [{"ID": category.ID, "name": category.name, "evidence": selected[category.ID]}
+               for category in categories if category.ID in selected]
+    logger.debug(
+        "Workflow %s output_valid=true retries=%d available_categories=%d "
+        "selected_categories=%d category_ids=%s",
+        workflow_name, retries, len(categories), len(results), [match["ID"] for match in results],
+    )
+    return results
 
 
 @dataclass(frozen=True)

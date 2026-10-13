@@ -28,10 +28,21 @@ from transformers import (
     ProcessorMixin,
 )
 
-from workflows import WorkflowError, iter_workflow_events, load_workflow_categories, run_workflows
+from workflows import WorkflowError, iter_workflow_events, load_retry_limit, load_workflow_categories, run_workflows
 
 
 logger = logging.getLogger("uvicorn.error.app")
+
+
+def configure_logging() -> None:
+    level = os.environ.get("LOG_LEVEL", "INFO").strip().upper()
+    if level not in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
+        raise RuntimeError("LOG_LEVEL must be DEBUG, INFO, WARNING, ERROR, or CRITICAL")
+    for name in (
+        "uvicorn", "uvicorn.error", "uvicorn.access",
+        "uvicorn.error.app", "uvicorn.error.workflows",
+    ):
+        logging.getLogger(name).setLevel(level)
 
 
 @dataclass
@@ -42,9 +53,11 @@ class ModelRuntime:
     model_id: str
     processor: ProcessorMixin | None = None
     inference_lock: LockType = field(default_factory=Lock, repr=False)
+    retry_limit: int = 1
 
 
 def load_runtime() -> ModelRuntime:
+    retry_limit = load_retry_limit()
     model_id = os.environ.get("MODEL_ID", "").strip()
     if not model_id:
         raise RuntimeError("MODEL_ID must identify a Hugging Face model or local directory")
@@ -85,13 +98,15 @@ def load_runtime() -> ModelRuntime:
         perf_counter() - started, model_id, device,
     )
     return ModelRuntime(
-        tokenizer=tokenizer, model=model, device=device, model_id=model_id, processor=processor
+        tokenizer=tokenizer, model=model, device=device, model_id=model_id, processor=processor,
+        retry_limit=retry_limit,
     )
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     load_dotenv(dotenv_path=Path(__file__).with_name(".env"), override=False)
+    configure_logging()
     categories = load_workflow_categories()
     app.state.runtime = load_runtime()
     app.state.workflow_categories = categories

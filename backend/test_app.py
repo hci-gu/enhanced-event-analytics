@@ -1,3 +1,4 @@
+import logging
 from unittest.mock import Mock
 
 import pytest
@@ -10,6 +11,14 @@ import workflows
 @pytest.fixture
 def loaders(monkeypatch):
     monkeypatch.setattr(backend, "load_dotenv", Mock())
+    monkeypatch.delenv("LOG_LEVEL", raising=False)
+    monkeypatch.delenv("RETRY_LIMIT", raising=False)
+    for name in (
+        "uvicorn", "uvicorn.error", "uvicorn.access",
+        "uvicorn.error.app", "uvicorn.error.workflows",
+    ):
+        target = logging.getLogger(name)
+        monkeypatch.setattr(target, "level", target.level)
     config = Mock(model_type="bert")
     monkeypatch.setattr(backend.AutoConfig, "from_pretrained", Mock(return_value=config))
     monkeypatch.setenv("MODEL_ID", "test/model")
@@ -22,6 +31,44 @@ def loaders(monkeypatch):
     monkeypatch.setattr(backend.AutoTokenizer, "from_pretrained", tokenizer_loader)
     monkeypatch.setattr(backend.AutoModel, "from_pretrained", model_loader)
     return tokenizer_loader, model_loader
+
+
+@pytest.mark.parametrize("value,expected", [(None, logging.INFO), (" debug ", logging.DEBUG)])
+def test_log_level_configuration(loaders, monkeypatch, value, expected):
+    if value is not None:
+        monkeypatch.setenv("LOG_LEVEL", value)
+    with TestClient(backend.app):
+        assert backend.logger.getEffectiveLevel() == expected
+        assert workflows.logger.getEffectiveLevel() == expected
+        assert logging.getLogger("uvicorn.error").getEffectiveLevel() == expected
+        assert logging.getLogger("uvicorn.access").getEffectiveLevel() == expected
+
+
+def test_invalid_log_level_prevents_model_loading(loaders, monkeypatch):
+    monkeypatch.setenv("LOG_LEVEL", "invalid")
+    with pytest.raises(RuntimeError, match="LOG_LEVEL must"):
+        with TestClient(backend.app):
+            pass
+    loaders[0].assert_not_called()
+    loaders[1].assert_not_called()
+
+
+@pytest.mark.parametrize("value,expected", [(None, 1), ("0", 0), (" 2 ", 2)])
+def test_retry_limit_configuration(loaders, monkeypatch, value, expected):
+    if value is not None:
+        monkeypatch.setenv("RETRY_LIMIT", value)
+    with TestClient(backend.app):
+        assert backend.app.state.runtime.retry_limit == expected
+
+
+@pytest.mark.parametrize("value", ["-1", "1.5", "", "invalid"])
+def test_invalid_retry_limit_prevents_model_loading(loaders, monkeypatch, value):
+    monkeypatch.setenv("RETRY_LIMIT", value)
+    with pytest.raises(RuntimeError, match="RETRY_LIMIT must"):
+        with TestClient(backend.app):
+            pass
+    loaders[0].assert_not_called()
+    loaders[1].assert_not_called()
 
 
 def test_requests_share_runtime_and_cleanup(loaders, monkeypatch):

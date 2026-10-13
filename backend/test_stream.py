@@ -77,6 +77,25 @@ def test_stream_endpoint_contract_and_existing_json_endpoint(loaders, monkeypatc
     assert ordinary.headers["x-analysis-id"] != analysis_id
 
 
+@pytest.mark.parametrize("path", ["/analyze-event", "/analyze-event/stream"])
+@pytest.mark.parametrize("recovered", [True, False])
+def test_category_retry_endpoint_contract(loaders, monkeypatch, path, recovered):
+    outputs = ["invalid", "[]", "[]", "[]"] if recovered else ["invalid", "invalid"]
+    generator = Mock(side_effect=outputs)
+    monkeypatch.setattr(workflows, "generate_text", generator)
+    with TestClient(backend.app) as client:
+        response = client.post(path, json={"text": "Text"})
+    assert generator.call_count == (4 if recovered else 2)
+    if path.endswith("/stream"):
+        events = parse_events(response)
+        assert events[-1][0] == ("analysis_completed" if recovered else "workflow_failed")
+        if not recovered:
+            assert events[-1][1]["code"] == 502
+            assert events[-1][1]["id"] == "risks"
+    else:
+        assert response.status_code == (200 if recovered else 502)
+
+
 def test_each_analysis_gets_a_unique_reference(loaders, monkeypatch):
     monkeypatch.setattr(workflows, "generate_text", Mock(return_value="[]"))
     with TestClient(backend.app) as client:

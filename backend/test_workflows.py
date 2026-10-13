@@ -59,10 +59,53 @@ def test_category_matches(categories, monkeypatch, output, expected, function, o
     workflows.categorize_risks, workflows.categorize_reach, workflows.categorize_service,
 ])
 def test_invalid_model_output(categories, monkeypatch, output, function):
-    monkeypatch.setattr(workflows, "generate_text", Mock(return_value=output))
+    generator = Mock(return_value=output)
+    monkeypatch.setattr(workflows, "generate_text", generator)
     with pytest.raises(workflows.WorkflowError) as error:
         function("Event", object(), categories)
     assert error.value.status_code == 502
+    assert generator.call_count == 2
+
+
+@pytest.mark.parametrize("invalid,feedback", [
+    ("not JSON", "inte giltig JSON"),
+    ('[{"ID":"unknown"}]', "ogiltiga kategori-ID"),
+    ("{}", "fel struktur"),
+])
+def test_category_retry_corrects_output(categories, monkeypatch, caplog, invalid, feedback):
+    generator = Mock(side_effect=[invalid, '[{"ID":"flood","evidence":["Water"]}]'])
+    monkeypatch.setattr(workflows, "generate_text", generator)
+    with caplog.at_level("DEBUG", logger=workflows.logger.name):
+        result = workflows.categorize_risks("Water rises", object(), categories)
+    assert result == [{"ID": "flood", "name": "Display flood", "evidence": ["Water"]}]
+    first, second = generator.call_args_list
+    assert first.kwargs["retries"] == 0
+    assert second.kwargs["retries"] == 1
+    assert first.args[0][1] == second.args[0][1]
+    assert feedback in second.args[0][0]["content"]
+    assert "output_valid=true retries=1" in caplog.text
+
+
+@pytest.mark.parametrize("limit", [0, 1, 2])
+def test_category_retry_limit(categories, monkeypatch, caplog, limit):
+    generator = Mock(return_value="not JSON")
+    monkeypatch.setattr(workflows, "generate_text", generator)
+    with caplog.at_level("DEBUG", logger=workflows.logger.name):
+        with pytest.raises(workflows.WorkflowError) as error:
+            workflows.categorize_risks("Event", SimpleNamespace(retry_limit=limit), categories)
+    assert error.value.status_code == 502
+    assert generator.call_count == limit + 1
+    assert f"retries={limit} reason=invalid_json exhausted=True" in caplog.text
+
+
+@pytest.mark.parametrize("status", [413, 502, 503])
+def test_generation_errors_are_not_retried(categories, monkeypatch, status):
+    generator = Mock(side_effect=workflows.WorkflowError(status, "Generation failed"))
+    monkeypatch.setattr(workflows, "generate_text", generator)
+    with pytest.raises(workflows.WorkflowError) as error:
+        workflows.categorize_risks("Event", object(), categories)
+    assert error.value.status_code == status
+    generator.assert_called_once()
 
 
 def test_registered_workflows_have_separate_prompts_and_categories(monkeypatch):
@@ -167,6 +210,54 @@ def test_generation_uses_only_new_tokens(runtime):
     assert tokens.tolist() == [12, 13]
     assert runtime.processor.apply_chat_template.call_args.kwargs["enable_thinking"] is False
     assert not runtime.inference_lock.locked()
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_debug_generation_metrics(runtime, monkeypatch, caplog, device):
+    runtime.device = device
+    inputs = runtime.processor.apply_chat_template.return_value
+    monkeypatch.setattr(inputs, "to", Mock(return_value=inputs))
+    synchronize = Mock()
+    monkeypatch.setattr(workflows.torch.cuda, "synchronize", synchronize)
+    monkeypatch.setattr(workflows, "perf_counter", Mock(side_effect=[10.0, 12.0]))
+    with caplog.at_level("DEBUG", logger=workflows.logger.name):
+        assert workflows.generate_text([], runtime, workflow_name="Risk", retries=1) == "[]"
+    assert "workflow=Risk input_tokens=2 output_tokens=2" in caplog.text
+    assert "generation_seconds=2.000000 tokens_per_second=1.00" in caplog.text
+    assert "retries=1 status=generated" in caplog.text
+    assert synchronize.call_count == (2 if device == "cuda" else 0)
+
+
+def test_info_generation_skips_cuda_metrics(runtime, monkeypatch, caplog):
+    runtime.device = "cuda"
+    inputs = runtime.processor.apply_chat_template.return_value
+    monkeypatch.setattr(inputs, "to", Mock(return_value=inputs))
+    synchronize = Mock()
+    monkeypatch.setattr(workflows.torch.cuda, "synchronize", synchronize)
+    with caplog.at_level("INFO", logger=workflows.logger.name):
+        assert workflows.generate_text([], runtime) == "[]"
+    synchronize.assert_not_called()
+    assert "tokens_per_second" not in caplog.text
+
+
+@pytest.mark.parametrize("output,expected", [
+    ('[{"ID":"flood"},{"ID":"flood"}]', "selected_categories=1 category_ids=['flood']"),
+    ("[]", "selected_categories=0 category_ids=[]"),
+    ("invalid", "output_valid=false retries=0 reason=invalid_json"),
+    ('[{"ID":"unknown"}]', "output_valid=false retries=0 reason=invalid_category_ids"),
+])
+def test_debug_category_outcomes(categories, monkeypatch, caplog, output, expected):
+    generator = Mock(return_value=output)
+    monkeypatch.setattr(workflows, "generate_text", generator)
+    with caplog.at_level("DEBUG", logger=workflows.logger.name):
+        if "output_valid=false" in expected:
+            with pytest.raises(workflows.WorkflowError):
+                workflows.categorize_risks("Event", SimpleNamespace(retry_limit=0), categories)
+        else:
+            workflows.categorize_risks("Event", object(), categories)
+            assert "output_valid=true retries=0 available_categories=2" in caplog.text
+    assert expected in caplog.text
+    generator.assert_called_once()
 
 
 @pytest.mark.parametrize("token_count,status", [(8192, None), (8193, 413)])

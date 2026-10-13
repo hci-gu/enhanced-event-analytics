@@ -31,6 +31,27 @@ Auto selects CUDA when available and otherwise CPU; explicit CUDA fails startup
 if unavailable. Startup loads `backend/.env` using `python-dotenv`. You can put
 `MODEL_ID` and `MODEL_DEVICE` there instead of setting them in PowerShell.
 Existing process environment variables take precedence over `.env` values.
+`LOG_LEVEL` defaults to `INFO` and controls backend and Uvicorn logging from
+application startup onward. Set it in `.env` to `DEBUG`, `INFO`, `WARNING`,
+`ERROR`, or `CRITICAL` (case insensitive), then restart the service. Invalid
+values prevent startup. DEBUG logs report each LLM call's workflow, input/output
+token counts, generation duration, and output tokens per second. Timing covers
+`model.generate()` including prompt prefill, excluding lock waiting, prompt
+preparation, transfers, and decoding; CUDA is synchronized for DEBUG timing.
+Output counts include generated special tokens, before decoding removes them.
+Workflow logs report output validation, available/selected category counts and
+selected IDs, or title fallback. `retries=0` with `output_valid=true` means the
+first attempt passed validation. Each additional category generation increments
+the retry count, and invalid output logs whether the retry limit is exhausted.
+DEBUG does not enable logging for third-party libraries.
+
+`RETRY_LIMIT` defaults to `1` and must be a non-negative integer. Each category
+workflow may retry malformed JSON or invalid category IDs this many times,
+using the original event/category definitions plus corrective instructions.
+With `1`, two invalid responses return HTTP 502; `0` disables retries. Configure
+it in `.env` and restart. Invalid values prevent model loading. Inference failures,
+input-limit errors, and unsupported models are not retried. Invalid evidence is
+still discarded rather than retried, and the title retains its existing fallback.
 Gemma 4 uses Transformers 5.7+ with `AutoProcessor` and
 `Gemma4ForConditionalGeneration`; the processor is available as
 `app.state.runtime.processor` for chat-template preparation. Its tokenizer is
@@ -119,8 +140,9 @@ The route runs in FastAPI's thread pool. A shared runtime lock serializes prompt
 preparation, generation and decoding for all requests/workflows using `generate_text`.
 Generation uses inference mode, disables thinking and sampling, and allows 4096
 new tokens. The complete input is capped at 8192 tokens; exceeding it returns HTTP
-413 without truncation. Malformed output, unknown IDs, or inference failures return
-HTTP 502; unsupported runtimes return HTTP 503. Only Gemma's loaded generation
+413 without truncation. Malformed category output or unknown IDs return HTTP 502
+after exhausting `RETRY_LIMIT`; inference failures return HTTP 502 immediately.
+Unsupported runtimes return HTTP 503. Only Gemma's loaded generation
 runtime currently supports the workflow; base models can still start and serve health.
 
 The frontend uses the streaming endpoint below. The existing JSON endpoint remains
@@ -171,7 +193,7 @@ After response headers are sent, errors are terminal `workflow_failed` events
 inside HTTP 200, not changed HTTP statuses. The ID can be null for an error before
 a workflow starts. Unexpected exceptions send a safe message; details are logged
 server-side. Clients must treat EOF without a terminal event as interruption.
-There are no stored jobs or automatic resume/retry; an in-flight model call cannot
+There are no stored jobs or automatic job resume/retry; an in-flight model call cannot
 be interrupted immediately when a client disconnects.
 
 Reverse proxies must disable response buffering and caching for this endpoint
