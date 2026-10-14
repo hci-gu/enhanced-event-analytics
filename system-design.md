@@ -109,10 +109,35 @@ with LLM inference while serializing embeddings. JSON responses and the existing
 `embedding_error: null`. Embedding failures preserve successful classification
 with `embedding: null` and a structured 502 embedding error. Analysis failures
 retain existing terminal behavior. Queued embedding work is cancelled on failure
-or stream closure; running inference may finish with its result discarded.
+or stream closure; running inference may finish and still persist its vector.
 Shutdown waits for active embedding work before releasing the runtimes.
-The frontend accepts but does not retain these additional fields. No vector
-persistence, related-event search, clustering, or graph storage is implemented.
+The frontend accepts but does not retain these additional fields. Vector
+persistence is implemented; public related-event search, clustering, and graph
+storage remain future work.
+
+LanceDB runs inside the backend process alongside local PocketBase. Startup opens
+the database before loading models and fails on invalid storage or table schema;
+shutdown releases it after embedding workers and callbacks finish. The optional
+`LANCEDB_STORAGE_PATH` uses process environment over `backend/.env`; absent/blank
+defaults to repository-root `./data/vectordb/`. Relative overrides also resolve
+against the repository root; only local paths are accepted. The directory is
+created automatically and the default is ignored by Git.
+
+`analysis_embeddings` stores exactly a non-null 768-dimensional float32 `vector`,
+verified `created_by`, and UUID `analysis_id`. Text/results stay in PocketBase.
+Successful analysis embeddings are merged idempotently by UUID with immutable
+ownership, even when classification fails or the stream disconnects. Failed
+PocketBase initial creates skip vector storage. `/embed-event` does not persist.
+Runtime vector write failures are logged without altering generation status or
+API responses; the two databases have no atomic transaction, retry queue or
+historical backfill. The table is dedicated to the current EmbeddingGemma2
+document model; changing models requires explicit migration/separation.
+
+An internal owner-required search prefilters `created_by` before exact cosine
+search and returns analysis IDs/distances; no approximate vector index or public
+search/retrieval endpoint is added. Future text retrieval must check ownership
+again. Back up both databases together with their writers stopped or coordinated
+filesystem snapshots; see [storage setup](backend/README.md#lancedb-vector-storage).
 
 `workflows.py` defines independent workflow functions and the `WORKFLOWS` registry.
 A fixed `generate_title` step outside the registry runs before categorization,

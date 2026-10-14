@@ -199,8 +199,8 @@ predictions. Success saves `Complete`. Both terminal states set `finished_at` in
 UTC. Embedding completion independently updates `embedding_status` without
 changing the category status or finish time. Cancellation before an embedding
 result sets its status to `Failed`; already-running embedding work may still
-finish successfully. Vectors are returned by the API but are not stored or indexed
-by this integration. `/embed-event` alone does not create an Analysis record.
+finish successfully. Vectors are returned by the API and separately persisted in
+LanceDB as described below. `/embed-event` alone does not create an Analysis record.
 
 Every successful create/update logs at INFO with operation, UUID, record ID and
 both statuses. Failed writes log a warning with HTTP status/error type; request
@@ -215,6 +215,61 @@ can still leave `Processing` records requiring future recovery.
 If a user token expires or is revoked during inference, subsequent writes can
 fail; there is no privileged fallback or background reauthentication. Analysis
 still returns its computed results and failed writes are logged.
+
+## LanceDB vector storage
+
+LanceDB runs embedded in Python on the same machine as the backend and PocketBase;
+there is no additional database service. Both dependency profiles include LanceDB
+and PyArrow. Use one backend worker. Startup opens and validates the vector table
+before loading models; initialization failure prevents startup without overwriting
+an incompatible table. Shutdown releases storage after embedding workers and their
+completion callbacks finish, including cleanup when model startup fails.
+
+Configure the optional path in `backend/.env`:
+
+```dotenv
+LANCEDB_STORAGE_PATH=./data/vectordb/
+```
+
+Absent or blank uses `./data/vectordb/`. Both the default and relative overrides
+resolve against the repository root, regardless of the launch directory. Absolute
+local paths are supported; remote URIs and network shares are rejected. Process
+environment variables take precedence over `.env`. The directory is created
+automatically. `/data/vectordb/` is ignored by Git; keep custom directories outside
+version control too. Changing the path selects another database; it does not move
+existing vectors.
+
+The `analysis_embeddings` table has exactly three non-null fields: `vector`
+(768 float32 values), `created_by` (verified PocketBase user ID), and `analysis_id`
+(backend UUID v4). It stores only normalized `google/embeddinggemma-2` document
+embeddings. A future model change needs an explicit migration or separate table,
+even if dimensions remain 768. Source text, titles and predictions stay in PocketBase.
+
+Both analysis endpoints save validated embeddings when generation completes,
+including successful embeddings from failed/disconnected category analyses.
+Queued cancellation or generation failure creates no vector row. If the initial
+PocketBase create failed, vector storage is skipped to avoid a knowingly missing
+text reference. `/embed-event` remains generation-only. Writes are serialized and
+idempotent by `analysis_id`; an existing row's owner cannot be changed.
+
+Runtime write failures log warnings and preserve API/stream responses.
+`embedding_status` continues to describe generation, not storage success. INFO logs
+record initialization and successful writes; skipped writes and failures record
+the analysis ID and reason/error type without vectors, source text, or tokens.
+There is no automatic retry queue or historical backfill. Writes to PocketBase and
+LanceDB are not atomic, so failures require later reconciliation or reanalysis.
+
+The internal `search_owned(vector, created_by, limit)` interface validates the user
+ID and prefilters that owner before exact cosine-distance search. It returns only
+analysis IDs and distances. No approximate index is created. Public search and
+retrieval endpoints and frontend integration are deferred; future text retrieval
+must independently verify PocketBase record ownership. Do not expose database
+files directly to users.
+
+Back up the entire vector database directory and PocketBase's `pb_data/` together
+while the backend and PocketBase are stopped, or use coordinated filesystem
+snapshots. A vector database backup alone cannot restore source text. Restart with
+the same configured path to reopen existing vectors.
 
 ## Private PocketBase boundary
 

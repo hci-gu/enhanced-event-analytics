@@ -9,6 +9,12 @@ from persistence import PocketBaseClient
 
 
 @pytest.fixture(autouse=True)
+def vector_storage_environment(monkeypatch, tmp_path):
+    """No test may open the configured real vector database."""
+    monkeypatch.setenv("LANCEDB_STORAGE_PATH", str(tmp_path / "vectordb"))
+
+
+@pytest.fixture(autouse=True)
 def serving_environment(monkeypatch):
     monkeypatch.delenv("SERVING_ENGINE", raising=False)
     monkeypatch.delenv("VLLM_GPU_MEMORY_UTILIZATION", raising=False)

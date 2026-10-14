@@ -11,6 +11,8 @@ dependencies = [
     "transformers>=5.19.0,<6",
     "pillow>=10",
     "httpx>=0.28",
+    "lancedb>=0.29,<0.30",
+    "pyarrow>=18",
 ]
 
 [project.optional-dependencies]

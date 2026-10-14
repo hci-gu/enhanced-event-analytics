@@ -35,6 +35,7 @@ from transformers import (
 from workflows import WorkflowError, iter_workflow_events, load_retry_limit, load_workflow_categories, run_workflows
 from embeddings import embed_document, load_embedding_runtime
 from persistence import AnalysisPersistence, create_pocketbase_client
+from vector_storage import VectorStorage, create_vector_storage
 from auth import UserSession, require_origin, require_user, router as auth_router
 from serving import GenerationEngine, TransformersEngine, VllmSettings, create_vllm_engine, load_serving_engine
 
@@ -49,6 +50,7 @@ def configure_logging() -> None:
     for name in (
         "uvicorn", "uvicorn.error", "uvicorn.access",
         "uvicorn.error.app", "uvicorn.error.workflows", "uvicorn.error.embeddings", "uvicorn.error.persistence",
+        "uvicorn.error.vector_storage",
     ):
         logging.getLogger(name).setLevel(level)
 
@@ -159,8 +161,14 @@ async def lifespan(app: FastAPI):
             logger.info("PocketBase connection checked (available=%s)", database_health["pocketbase_available"])
             if not database_health["pocketbase_available"]:
                 logger.warning("PocketBase unavailable; backend startup continues. User sessions require PocketBase verification.")
-            async with model_lifespan(app):
-                yield
+            storage = await to_thread(create_vector_storage)
+            app.state.vector_storage = storage
+            try:
+                async with model_lifespan(app):
+                    yield
+            finally:
+                await to_thread(storage.close)
+                del app.state.vector_storage
         finally:
             del app.state.pocketbase
 
@@ -297,14 +305,27 @@ def embedding_result(future: Future) -> dict[str, Any]:
         return {"embedding": None, "embedding_error": {"code": 502, "message": "Embedding inference failed"}}
 
 
-def track_embedding(future: Future, persistence: AnalysisPersistence) -> None:
+def track_embedding(future: Future, persistence: AnalysisPersistence, storage: VectorStorage | None = None) -> None:
     def completed(done: Future):
         try:
-            DocumentEmbedding(**done.result())
+            embedding = DocumentEmbedding(**done.result())
             success = True
         except Exception:
             success = False
         persistence.embedding_completed(success)
+        if success and storage is not None:
+            if not persistence.record_id:
+                logging.getLogger("uvicorn.error.vector_storage").warning(
+                    "LanceDB vector skipped (analysis_id=%s, reason=pocketbase_create_failed)", persistence.analysis_id,
+                )
+                return
+            try:
+                storage.upsert(embedding.vector, persistence.data["created_by"], persistence.analysis_id)
+            except Exception as exc:
+                logging.getLogger("uvicorn.error.vector_storage").warning(
+                    "LanceDB vector write failed (analysis_id=%s, error_type=%s)",
+                    persistence.analysis_id, type(exc).__name__,
+                )
     future.add_done_callback(completed)
 
 
@@ -366,7 +387,7 @@ def analyze_event(payload: AnalyzeEventRequest, request: Request, response: Resp
     future = None
     try:
         future = submit_embedding(payload.text, request)
-        track_embedding(future, persistence)
+        track_embedding(future, persistence, request.app.state.vector_storage)
         results = run_workflows(
             payload.text, request.app.state.runtime, request.app.state.workflow_categories,
             on_event=persistence.on_event,
@@ -434,7 +455,7 @@ def analyze_event_stream(payload: AnalyzeEventRequest, request: Request,
         persistence.embedding_completed(False)
         persistence.finish(error={"workflow_id": None, "code": 500, "message": "Embedding submission failed"})
         raise
-    track_embedding(future, persistence)
+    track_embedding(future, persistence, request.app.state.vector_storage)
 
     def stream():
         current_id = None
