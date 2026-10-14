@@ -148,6 +148,18 @@ def generate_text(
     workflow_name: str = "generation",
     retries: int = 0,
 ) -> str:
+    engine = getattr(runtime, "engine", None)
+    if engine is not None:
+        return engine.generate(messages, runtime, max_new_tokens=max_new_tokens,
+                               workflow_name=workflow_name, retries=retries)
+    return _generate_transformers(messages, runtime, max_new_tokens=max_new_tokens,
+                                  workflow_name=workflow_name, retries=retries)
+
+
+def _generate_transformers(
+    messages: list[dict[str, str]], runtime: "ModelRuntime", *,
+    max_new_tokens: int, workflow_name: str, retries: int,
+) -> str:
     if runtime.processor is None or not runtime.model.can_generate():
         raise WorkflowError(503, "The loaded model does not support this generation workflow")
 

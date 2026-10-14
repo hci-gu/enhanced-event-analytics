@@ -28,7 +28,6 @@ from transformers import (
     AutoProcessor,
     AutoTokenizer,
     Gemma4ForConditionalGeneration,
-    PreTrainedModel,
     PreTrainedTokenizerBase,
     ProcessorMixin,
 )
@@ -37,6 +36,7 @@ from workflows import WorkflowError, iter_workflow_events, load_retry_limit, loa
 from embeddings import embed_document, load_embedding_runtime
 from persistence import AnalysisPersistence, create_pocketbase_client
 from auth import UserSession, require_origin, require_user, router as auth_router
+from serving import GenerationEngine, TransformersEngine, VllmSettings, create_vllm_engine, load_serving_engine
 
 
 logger = logging.getLogger("uvicorn.error.app")
@@ -56,12 +56,14 @@ def configure_logging() -> None:
 @dataclass
 class ModelRuntime:
     tokenizer: PreTrainedTokenizerBase
-    model: PreTrainedModel
+    model: Any
     device: str
     model_id: str
     processor: ProcessorMixin | None = None
     inference_lock: LockType = field(default_factory=Lock, repr=False)
     retry_limit: int = 1
+    serving_engine: Literal["transformers", "vllm"] = "transformers"
+    engine: GenerationEngine = field(default_factory=TransformersEngine, repr=False)
 
 
 @contextmanager
@@ -89,6 +91,7 @@ def loading_stage(stage: str, *, device: str | None = None):
 
 
 def load_runtime() -> ModelRuntime:
+    load_serving_engine()
     retry_limit = load_retry_limit()
     model_id = os.environ.get("MODEL_ID", "").strip()
     if not model_id:
@@ -164,22 +167,56 @@ async def lifespan(app: FastAPI):
 
 @asynccontextmanager
 async def model_lifespan(app: FastAPI):
+    serving_engine = load_serving_engine()
+    settings = VllmSettings.from_environment() if serving_engine == "vllm" else None
     with loading_stage("categories"):
         categories = load_workflow_categories()
-    app.state.runtime = load_runtime()
+    runtime = None
+    embedding_runtime = None
+    executor = None
     try:
-        app.state.embedding_runtime = load_embedding_runtime(app.state.runtime.device)
+        if settings is None:
+            runtime = load_runtime()
+            embedding_runtime = load_embedding_runtime(runtime.device)
+        else:
+            embedding_runtime = load_embedding_runtime("cuda")
+            started = perf_counter()
+            logger.info("Model loading started (engine=vllm, model_id=%s, device=cuda)", settings.model_id)
+            engine = None
+            try:
+                config = AutoConfig.from_pretrained(settings.model_id)
+                processor = AutoProcessor.from_pretrained(settings.model_id) if config.model_type == "gemma4" else None
+                tokenizer = processor.tokenizer if processor is not None else AutoTokenizer.from_pretrained(settings.model_id)
+                engine = create_vllm_engine(settings)
+                runtime = ModelRuntime(
+                    tokenizer=tokenizer, model=engine.engine, device="cuda", model_id=settings.model_id,
+                    processor=processor, retry_limit=settings.retry_limit, serving_engine="vllm", engine=engine,
+                )
+            except Exception as exc:
+                if engine is not None:
+                    await engine.close()
+                logger.exception("vLLM model loading failed (model_id=%s)", settings.model_id)
+                raise RuntimeError(f"Failed to load MODEL_ID={settings.model_id!r} with vllm: {exc}") from exc
+            logger.info("Model loading finished in %.2fs (engine=vllm, model_id=%s)", perf_counter() - started, settings.model_id)
+        app.state.runtime = runtime
+        app.state.embedding_runtime = embedding_runtime
         app.state.workflow_categories = categories
-        app.state.embedding_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="embedding")
-        try:
-            yield
-        finally:
-            app.state.embedding_executor.shutdown(wait=True, cancel_futures=True)
-            del app.state.embedding_executor
-            del app.state.workflow_categories
-            del app.state.embedding_runtime
+        executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="embedding")
+        app.state.embedding_executor = executor
+        logger.info("Serving engine selected (engine=%s)", serving_engine)
+        yield
     finally:
-        del app.state.runtime
+        try:
+            if executor is not None:
+                await to_thread(executor.shutdown, wait=True, cancel_futures=True)
+        finally:
+            try:
+                if runtime is not None:
+                    await runtime.engine.close()
+            finally:
+                for name in ("embedding_executor", "workflow_categories", "embedding_runtime", "runtime"):
+                    if hasattr(app.state, name):
+                        delattr(app.state, name)
 
 
 app = FastAPI(title="Enhanced Event Analytics", lifespan=lifespan)
@@ -212,6 +249,7 @@ async def health(request: Request) -> dict[str, str | bool]:
         "model_id": runtime.model_id,
         "device": runtime.device,
         "model_loaded": True,
+        "serving_engine": runtime.serving_engine,
         "embedding_model_id": request.app.state.embedding_runtime.model_id,
         "embedding_model_loaded": True,
         **await to_thread(request.app.state.pocketbase.check_health),

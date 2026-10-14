@@ -8,6 +8,12 @@ import app as backend
 from persistence import PocketBaseClient
 
 
+@pytest.fixture(autouse=True)
+def serving_environment(monkeypatch):
+    monkeypatch.delenv("SERVING_ENGINE", raising=False)
+    monkeypatch.delenv("VLLM_GPU_MEMORY_UTILIZATION", raising=False)
+
+
 @pytest.fixture
 def pocketbase(monkeypatch):
     """A mock HTTP service: tests never contact a real database."""

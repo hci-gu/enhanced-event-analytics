@@ -54,15 +54,32 @@ Each workflow's list may contain zero, one, or multiple matches, each with `ID`
 and display `name`. Invalid text returns HTTP 422.
 Successful responses also include `embedding` and `embedding_error` fields.
 
-The lifespan loads a configurable Transformers tokenizer and base model once
-per server process into `app.state.runtime`. `MODEL_ID` selects a Hugging Face
-model or local directory; `MODEL_DEVICE=auto|cpu|cuda` selects its device.
+The lifespan loads one generation runtime per server process into
+`app.state.runtime`. `SERVING_ENGINE=transformers|vllm` defaults to Transformers;
+`MODEL_ID` explicitly selects a Hugging Face model or local directory.
+`MODEL_DEVICE=auto|cpu|cuda` selects the Transformers device. `/health` reports
+the selected `serving_engine` alongside existing model metadata.
 When CUDA is selected, `from_pretrained()` places the entire LLM directly on
 `cuda:0` using a fixed device map, without a later `.to()` call. The CUDA
 dependency profile includes Accelerate. DEBUG weights timing includes CUDA
 placement and synchronization; CPU retains a separate device-placement stage.
-Each server worker loads its own model. CPU and CUDA 12.8 dependency profiles
-are managed with uv extras; see [backend setup](backend/README.md).
+Each server worker loads its own model. Windows/Linux CPU and Linux-only CUDA
+13.0 profiles are managed with uv extras; CUDA includes both serving engines.
+Use one Uvicorn worker; see [backend setup](backend/README.md).
+
+vLLM uses an embedded async Python engine, with internal worker processes and no
+additional HTTP service. It requires Linux/CUDA and rejects explicit CPU selection.
+For NVIDIA's Gemma 4 NVFP4 checkpoint it automatically detects saved quantization.
+The engine runs on one GPU with TP=1, one simultaneous sequence, and 12,288 tokens
+of context. `VLLM_GPU_MEMORY_UTILIZATION` defaults to 0.70 and accepts finite values
+in (0, 1]. EmbeddingGemma loads first so its resident GPU memory is visible to
+vLLM. Worker creation defaults to spawn, avoiding forks after CUDA initialization.
+Workflow threads bridge synchronous generation to the engine's application event
+loop, submitting chat-template token IDs with thinking disabled and greedy sampling.
+The existing inference lock serializes both engines. Shutdown aborts active vLLM
+requests and stops its workers; startup failures release initialized resources.
+Spark ARM64 dependency resolution and mocked tests do not verify NVFP4 kernels
+or real-model classification quality.
 
 Startup additionally loads text-only `google/embeddinggemma-2` using Transformers
 5.19+, with audio and vision towers disabled, onto the same resolved device as

@@ -5,14 +5,16 @@ Choose exactly one PyTorch profile (extra names are case insensitive):
 
 ```powershell
 uv sync --extra CPU
-# Or, on an NVIDIA CUDA machine:
+# Or, on a Linux NVIDIA CUDA machine (includes both serving engines):
 uv sync --extra CUDA
 ```
 
-The CPU profile uses the official CPU-only PyTorch index. The CUDA profile uses
-the official CUDA 12.8 index and targets Windows/Linux NVIDIA machines. It needs
-a CUDA 12.8-compatible NVIDIA driver; the wheels supply the CUDA runtime, so a
-separate CUDA toolkit is not needed. Both profiles cannot be enabled together.
+The CPU profile supports Windows and Linux and uses the official CPU-only PyTorch
+index. The CUDA profile targets Linux only and includes vLLM 0.29.0, Accelerate,
+PyTorch 2.13.0 and torchvision 0.28.0 from the official CUDA 13.0 index. It needs
+a CUDA 13.0-compatible NVIDIA driver. Both profiles cannot be enabled together.
+The CUDA extra has Linux markers and does not supply a Windows GPU installation.
+FastAPI is constrained to 0.133–0.136 to match vLLM's declared dependencies.
 Plain `uv sync` does not install PyTorch; select a profile when running the API.
 
 Use [`google/gemma-4-26B-A4B-it`](https://huggingface.co/google/gemma-4-26B-A4B-it)
@@ -21,6 +23,7 @@ for event analysis, then launch:
 ```powershell
 $env:MODEL_ID = 'google/gemma-4-26B-A4B-it'
 $env:MODEL_DEVICE = 'auto'
+$env:SERVING_ENGINE = 'transformers'
 uv run --extra CPU uvicorn app:app
 # Or use the CUDA profile:
 uv run --extra CUDA uvicorn app:app
@@ -35,13 +38,66 @@ For an existing installation, update `MODEL_ID` in your local `.env` or process
 environment and restart the backend. The 26B A4B checkpoint is a mixture-of-experts
 model; its active parameter count does not mean only 4B parameters need to fit
 in memory. The current loader places the full checkpoint on CPU or GPU 0.
+
+## Serving engine selection
+
+`SERVING_ENGINE` defaults to `transformers`; its only accepted values are
+`transformers` and `vllm` (lowercase, surrounding whitespace trimmed). Invalid
+values fail startup. `MODEL_ID` remains required for either engine, with no
+automatic model selection or fallback between engines.
+
+For a DGX Spark running Linux, install the CUDA extra and configure:
+
+```dotenv
+SERVING_ENGINE=vllm
+MODEL_ID=nvidia/Gemma-4-26B-A4B-NVFP4
+MODEL_DEVICE=cuda
+VLLM_GPU_MEMORY_UTILIZATION=0.70
+```
+
+Launch with `uv run --extra CUDA uvicorn app:app --workers 1`. The embedded
+async vLLM Python engine lives for the FastAPI application's lifetime; it starts
+internal worker processes but exposes no separate HTTP server. CUDA worker
+creation defaults to `spawn` because embeddings have already initialized CUDA.
+vLLM requires Linux, available CUDA, and `MODEL_DEVICE=auto` or `cuda`; explicit
+CPU selection fails startup. Transformers remains the CPU/default option and
+does not import vLLM. Use the Google BF16 checkpoint above for Transformers and
+the [NVIDIA pre-quantized NVFP4 checkpoint](https://huggingface.co/nvidia/Gemma-4-26B-A4B-NVFP4)
+for vLLM. The latter loads saved quantized weights, without re-quantizing each boot.
+Remote model code is not enabled implicitly.
+
+`VLLM_GPU_MEMORY_UTILIZATION` is the fraction of total GPU memory budgeted for
+vLLM, including its model and KV cache. It defaults to `0.70`, must be finite and
+greater than zero and at most one, and is validated only in vLLM mode. Startup
+loads EmbeddingGemma on CUDA first so its resident allocation is visible to vLLM.
+Allow additional headroom for embedding activations and the OS; 70% is a starting
+budget, not a guarantee that any selected checkpoint fits.
+
+The engine uses one GPU, tensor parallel size one, one simultaneous generation
+sequence, and a 12,288-token context budget (8,192 input plus 4,096 output).
+Generation remains serialized across workflows/requests, uses greedy decoding,
+and disables thinking through the chat template. Prepared prompt token IDs go
+directly to vLLM; completed output tokens are decoded without special tokens.
+Synchronous workflow threads submit work to FastAPI's event loop, keeping that
+loop responsive. Shutdown cancels/aborts outstanding engine requests and releases
+vLLM workers. Stream disconnect behavior is otherwise unchanged.
+
+Spark is Linux ARM64 (GB10). Use compatible ARM64 CUDA/PyTorch/vLLM binaries and
+the pinned dependency stack. Package resolution alone does not verify Spark's
+NVFP4 kernels. Consult [vLLM installation guidance](https://docs.vllm.ai/en/v0.29.0/getting_started/installation/gpu/)
+for binaries, drivers, and any required kernel toolchain. Mocked tests do not
+establish real-model classification quality or hardware compatibility.
+
+## Logging and runtime
+
 `LOG_LEVEL` defaults to `INFO` and controls backend and Uvicorn logging from
 application startup onward. Set it in `.env` to `DEBUG`, `INFO`, `WARNING`,
 `ERROR`, or `CRITICAL` (case insensitive), then restart the service. Invalid
 values prevent startup. DEBUG logs report each LLM call's workflow, input/output
 token counts, generation duration, and output tokens per second. Timing covers
-`model.generate()` including prompt prefill, excluding lock waiting, prompt
-preparation, transfers, and decoding; CUDA is synchronized for DEBUG timing.
+`model.generate()` for Transformers and the awaited engine request for vLLM,
+including prompt prefill, excluding lock waiting, prompt preparation, transfers,
+and final decoding; Transformers CUDA is synchronized for DEBUG timing.
 Output counts include generated special tokens, before decoding removes them.
 Workflow logs report output validation, available/selected category counts and
 selected IDs, or title fallback. `retries=0` with `output_valid=true` means the
@@ -68,7 +124,7 @@ With `1`, two invalid responses return HTTP 502; `0` disables retries. Configure
 it in `.env` and restart. Invalid values prevent model loading. Inference failures,
 input-limit errors, and unsupported models are not retried. Invalid evidence is
 still discarded rather than retried, and the title retains its existing fallback.
-The backend requires Transformers 5.19+ (below 6). Gemma 4 uses `AutoProcessor` and
+The backend requires Transformers 5.19+ (below 6). In Transformers mode, Gemma 4 uses `AutoProcessor` and
 `Gemma4ForConditionalGeneration`; the processor is available as
 `app.state.runtime.processor` for chat-template preparation. Its tokenizer is
 also available through `app.state.runtime.tokenizer`. Checkpoints are loaded
@@ -78,7 +134,7 @@ before restarting the service.
 The first startup downloads model/tokenizer files into the Hugging Face cache
 unless a local directory or cached model is used. Loading errors prevent startup.
 
-FastAPI's lifespan loads the tokenizer and model once per server process and
+In Transformers mode, FastAPI's lifespan loads the tokenizer and model once per server process and
 enables evaluation mode. CUDA selection loads the full model directly onto GPU 0
 using Accelerate (included in the CUDA extra). Explicit CPU selection stays on
 CPU even when CUDA is available. They stay in
@@ -227,7 +283,7 @@ PocketBase failure leaves top-level `status: "ok"` because model health is separ
 authenticated requests still need PocketBase to verify their session. Example:
 
 ```json
-{"status":"ok","model_id":"google/gemma-4-26B-A4B-it","device":"cpu","model_loaded":true,"embedding_model_id":"google/embeddinggemma-2","embedding_model_loaded":true,"pocketbase_available":true}
+{"status":"ok","model_id":"google/gemma-4-26B-A4B-it","device":"cpu","model_loaded":true,"serving_engine":"transformers","embedding_model_id":"google/embeddinggemma-2","embedding_model_loaded":true,"pocketbase_available":true}
 ```
 
 ```powershell
@@ -352,8 +408,9 @@ Generation uses inference mode, disables thinking and sampling, and allows 4096
 new tokens. The complete input is capped at 8192 tokens; exceeding it returns HTTP
 413 without truncation. Malformed category output or unknown IDs return HTTP 502
 after exhausting `RETRY_LIMIT`; inference failures return HTTP 502 immediately.
-Unsupported runtimes return HTTP 503. Only Gemma's loaded generation
-runtime currently supports the workflow; base models can still start and serve health.
+Unsupported runtimes return HTTP 503. In Transformers mode, only Gemma's loaded
+generation runtime currently supports the workflow; base models can still start
+and serve health. vLLM mode uses the selected model's text generation engine.
 
 The frontend uses the streaming endpoint below. The existing JSON endpoint remains
 available for scripts and other clients, with the additional top-level `title` field.
@@ -416,12 +473,14 @@ the hosting proxy as well. The frontend's `/api` prefix must be stripped.
 ## Verification
 
 ```powershell
-uv run --extra CPU python -m py_compile app.py auth.py workflows.py embeddings.py persistence.py conftest.py test_app.py test_auth.py test_workflows.py test_stream.py test_title.py test_embeddings.py test_persistence.py smoke_articles.py
+uv run --extra CPU python -m py_compile app.py serving.py auth.py workflows.py embeddings.py persistence.py conftest.py test_app.py test_serving.py test_auth.py test_workflows.py test_stream.py test_title.py test_embeddings.py test_persistence.py smoke_articles.py
 uv run --extra CPU python -m pytest
 uv lock --check
 ```
 
 Tests mock both model loading and inference and do not download model weights or require a GPU.
+Serving tests cover both engine paths with mocked vLLM, configuration rejection,
+serialized generation, token limits, lifecycle cleanup, and JSON/SSE contracts.
 Auth and persistence tests use a mocked HTTP transport and never contact a real PocketBase
 database. They cover startup/health/outage recovery, authentication, incremental
 writes, partial failure, independent embedding status, cancellation, creator attribution,

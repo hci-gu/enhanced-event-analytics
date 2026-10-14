@@ -137,6 +137,7 @@ def test_requests_share_runtime_and_cleanup(loaders, monkeypatch):
             "model_id": "test/model",
             "device": "cpu",
             "model_loaded": True,
+            "serving_engine": "transformers",
             "embedding_model_id": "google/embeddinggemma-2",
             "embedding_model_loaded": True,
             "pocketbase_available": True,
