@@ -2,6 +2,7 @@
 
 import logging
 import os
+from ipaddress import ip_address
 from datetime import datetime, timezone
 from threading import Lock
 from typing import Any
@@ -14,11 +15,16 @@ RECORDS_PATH = "/api/collections/Analysis/records"
 
 
 class PocketBaseClient:
-    def __init__(self, url: str, token: str = "", *, transport=None):
-        self.has_token = bool(token)
+    def __init__(self, url: str, *, transport=None):
+        address = httpx.URL(url)
+        try:
+            loopback = ip_address(address.host).is_loopback
+        except ValueError:
+            loopback = address.host == "localhost"
+        if address.scheme != "http" or not loopback or address.userinfo or address.query or address.fragment or address.path not in {"", "/"}:
+            raise ValueError("POCKETBASE_URL must be a loopback HTTP address without credentials or a path")
         self.http = httpx.Client(
             base_url=url, timeout=2.0, trust_env=False, transport=transport,
-            headers={"Authorization": token} if token else {},
         )
 
     def __enter__(self):
@@ -29,28 +35,23 @@ class PocketBaseClient:
 
     def check_health(self) -> dict[str, bool]:
         available = False
-        ready = False
         try:
             response = self.http.get("/api/health")
             response.raise_for_status()
             available = response.json().get("code") == 200
-            if available and self.has_token:
-                response = self.http.get("/api/collections/Analysis")
-                response.raise_for_status()
-                ready = response.json().get("name") == "Analysis"
         except (httpx.HTTPError, ValueError, AttributeError):
             pass
-        return {"pocketbase_available": available, "pocketbase_persistence_ready": ready}
+        return {"pocketbase_available": available}
 
-    def save(self, analysis_id: str, data: dict[str, Any], record_id: str | None = None) -> str | None:
-        if not self.has_token:
-            return None
+    def save(self, analysis_id: str, data: dict[str, Any], token: str, record_id: str | None = None) -> str | None:
         operation = "update" if record_id else "create"
         try:
             if record_id:
-                response = self.http.patch(f"{RECORDS_PATH}/{record_id}", json=data, params={"fields": "id"})
+                response = self.http.patch(f"{RECORDS_PATH}/{record_id}", json=data, params={"fields": "id"},
+                                           headers={"Authorization": token})
             else:
-                response = self.http.post(RECORDS_PATH, json=data, params={"fields": "id"})
+                response = self.http.post(RECORDS_PATH, json=data, params={"fields": "id"},
+                                          headers={"Authorization": token})
             response.raise_for_status()
             saved_id = response.json()["id"]
             if not isinstance(saved_id, str) or not saved_id.isalnum() or len(saved_id) != 15:
@@ -73,14 +74,14 @@ class PocketBaseClient:
 def create_pocketbase_client() -> PocketBaseClient:
     return PocketBaseClient(
         os.environ.get("POCKETBASE_URL", "http://127.0.0.1:8090").strip(),
-        os.environ.get("POCKETBASE_TOKEN", "").strip(),
     )
 
 
 class AnalysisPersistence:
-    def __init__(self, client: PocketBaseClient, analysis_id: str, text: str, created_by: str):
+    def __init__(self, client: PocketBaseClient, analysis_id: str, text: str, created_by: str, token: str):
         self.client = client
         self.analysis_id = analysis_id
+        self._token = token
         self.lock = Lock()
         self.current_workflow = None
         self.terminal = False
@@ -90,11 +91,11 @@ class AnalysisPersistence:
             "title": "", "predictions": {}, "error": None, "finished_at": "",
         }
         # Do not retry an uncertain POST: it may have committed before a timeout.
-        self.record_id = client.save(analysis_id, self.data)
+        self.record_id = client.save(analysis_id, self.data, self._token)
 
     def _save(self):
         if self.record_id:
-            self.client.save(self.analysis_id, self.data, self.record_id)
+            self.client.save(self.analysis_id, self.data, self._token, self.record_id)
 
     def on_event(self, event: str, data: dict[str, Any]):
         with self.lock:

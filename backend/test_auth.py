@@ -25,17 +25,24 @@ def authentication(loaders, pocketbase, monkeypatch):
 
     def handler(request):
         if request.url.path.endswith("/auth-with-password") or request.url.path.endswith("/auth-refresh"):
-            assert request.headers["Authorization"] != "test-token"
+            user_id = "testuser0000001"
             if request.url.path.endswith("/auth-refresh"):
-                if request.headers["Authorization"] not in {"user-token", "second-token"}:
+                identities = {"user-token": "testuser0000001", "second-token": "seconduser00001",
+                              "refreshed-user-token": "testuser0000001", "refreshed-second-token": "seconduser00001"}
+                user_id = identities.get(request.headers["Authorization"])
+                if not user_id:
                     return httpx.Response(401, json={})
-            user_id = "seconduser00001" if request.headers["Authorization"] == "second-token" else "testuser0000001"
-            return httpx.Response(200, json={"token": "user-token", "record": {
+            token = "refreshed-second-token" if user_id == "seconduser00001" else "refreshed-user-token"
+            return httpx.Response(200, json={"token": token, "record": {
                 "id": user_id, "email": "user@example.com", "collectionName": "users",
             }})
         if request.url.path.endswith("/users/records"):
-            assert request.headers["Authorization"] == "test-token"
+            assert "Authorization" not in request.headers
             return httpx.Response(200, json={"id": "testuser0000001"})
+        if "/Analysis/records" in request.url.path:
+            data = json.loads(request.content)
+            expected_token = "refreshed-second-token" if data["created_by"] == "seconduser00001" else "refreshed-user-token"
+            assert request.headers["Authorization"] == expected_token
         return default(request)
 
     pocketbase.handler = handler
@@ -80,16 +87,16 @@ def test_wrong_credentials_are_unauthorized_and_auth_errors_are_not_cached(authe
         assert "Private internal details" not in response.text
 
 
-def test_custom_origin_and_missing_registration_service_token(authentication, monkeypatch):
+def test_custom_origin_and_registration_without_superuser_token(authentication, monkeypatch):
     monkeypatch.setenv("AUTH_ALLOWED_ORIGINS", "https://analytics.example")
-    authentication.token = ""
+    monkeypatch.delenv("POCKETBASE_TOKEN", raising=False)
     with TestClient(backend.app) as client:
         assert client.post("/auth/login", json=CREDENTIALS, headers=ORIGIN).status_code == 403
         headers = {"Origin": "https://analytics.example"}
         assert client.post("/auth/login", json=CREDENTIALS, headers=headers).status_code == 200
         response = client.post("/auth/register", json={**CREDENTIALS, "password_confirm": "password123"}, headers=headers)
-        assert response.status_code == 503
-    assert not any(path.endswith("/users/records") for _, path, _ in authentication.requests)
+        assert response.status_code == 201
+    assert any(path.endswith("/users/records") for _, path, _ in authentication.requests)
 
 
 def test_registration_logs_in_and_forwards_only_allowed_fields(authentication):

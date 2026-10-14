@@ -26,8 +26,8 @@ func TestUserAuthenticationAndAnalysisCreators(t *testing.T) {
 	if !users.Fields.GetByName("email").(*core.EmailField).Required || users.Fields.GetByName("password").(*core.PasswordField).Min != 8 {
 		t.Fatal("required email and minimum password length are missing")
 	}
-	if users.CreateRule != nil || users.ListRule != nil || users.ViewRule != nil || users.UpdateRule != nil || users.DeleteRule != nil {
-		t.Fatal("user record API must remain locked")
+	if users.CreateRule == nil || users.ListRule != nil || users.ViewRule != nil || users.UpdateRule != nil || users.DeleteRule != nil {
+		t.Fatal("only public registration should be enabled")
 	}
 	createUser := func(email string) *core.Record {
 		user := core.NewRecord(users)

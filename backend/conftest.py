@@ -11,23 +11,22 @@ from persistence import PocketBaseClient
 @pytest.fixture
 def pocketbase(monkeypatch):
     """A mock HTTP service: tests never contact a real database."""
-    service = SimpleNamespace(requests=[], token="test-token", clients=[])
+    service = SimpleNamespace(requests=[], authorizations=[], clients=[])
 
     def default_handler(request):
         if request.url.path == "/api/health":
             return httpx.Response(200, json={"code": 200})
-        if request.url.path == "/api/collections/Analysis":
-            return httpx.Response(200, json={"name": "Analysis"})
         return httpx.Response(200, json={"id": "testrecord00001"})
 
     service.handler = default_handler
 
     def dispatch(request):
         service.requests.append((request.method, request.url.path, json.loads(request.content) if request.content else None))
+        service.authorizations.append(request.headers.get("Authorization"))
         return service.handler(request)
 
     def create():
-        client = PocketBaseClient("http://127.0.0.1:8090", service.token, transport=httpx.MockTransport(dispatch))
+        client = PocketBaseClient("http://127.0.0.1:8090", transport=httpx.MockTransport(dispatch))
         service.clients.append(client)
         return client
 

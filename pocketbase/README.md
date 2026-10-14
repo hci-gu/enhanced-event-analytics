@@ -9,14 +9,26 @@ future schema updates. Runtime data in `pb_data/` is ignored by Git.
 The user migration reuses PocketBase's default `users` auth collection, preserving
 existing accounts and token secrets. It requires unique email, enables password
 login with a minimum of eight characters, and sets seven-day auth tokens.
-User record API rules stay locked; FastAPI handles public registration with its
-server superuser token. Verification is not required, and auth alert emails are
+The follow-up authorization migration allows anonymous user creation and
+attributed analysis creation/updates. FastAPI handles registration without a
+superuser token and writes results using the verified user's refreshed token.
+Other user record API operations stay locked. Verification is not required, and auth alert emails are
 disabled so this first version needs no mail service. Restart a running PocketBase
 after applying migrations to refresh its collection cache.
 
 Verify with `go build .` and `go test ./...`. Tests use a temporary database and
 check migration application, UUID uniqueness/format, status validation, retained
-partial predictions, timestamps, and locked API access without loading a model.
+partial predictions, timestamps, and user-authorized API access without loading a model.
+The API tests exercise actual PocketBase handlers with a temporary database,
+covering registration, login, refresh, own-record updates, cross-user denial and
+immutable creator/source identifiers without starting a network listener.
+
+PocketBase stays private behind Python. `go run . serve` defaults to
+`127.0.0.1:8090`; the service also rejects non-loopback IP listeners and direct
+HTTPS mode. A custom port is allowed on a loopback IP (`--http=127.0.0.1:9090`
+or `--http=[::1]:8090`). Serve the frontend/Python publicly via the same-origin
+reverse proxy, never proxy PocketBase or its API to browsers. The dashboard can
+still be opened on the same machine at `http://127.0.0.1:8090/_/`.
 
 Successful Analysis record creates and updates emit `Analysis record saved` at
 INFO level through PocketBase's logger, with operation, record ID, backend UUID,
@@ -40,9 +52,12 @@ the record API; they do not log collection migrations or failed record writes.
 | `created`, `updated` | Automatic dates | Record creation and last update times. |
 | `finished_at` | Optional date | UTC time when category analysis becomes `Complete` or `Failed`; empty while processing. |
 
-All five record API rules are locked (superusers only). FastAPI writes records
-through the HTTP record API using `POCKETBASE_TOKEN`, a configured superuser API
-token. Its default `POCKETBASE_URL` is `http://127.0.0.1:8090`. See
+The create rule requires an authenticated users identity matching `created_by`.
+The update rule requires ownership and disallows changing `created_by`,
+`analysis_id`, or `original_text`. Listing, viewing and deletion stay locked.
+FastAPI writes through the HTTP record API using the refreshed user session token;
+there is no server superuser credential. The default `POCKETBASE_URL` is
+`http://127.0.0.1:8090`. See
 [backend persistence setup](../backend/README.md#pocketbase-persistence).
 PocketBase validates field types, UUID format/uniqueness, and allowed status values;
 the backend writer manages lifecycle transitions and accumulated workflow results.
@@ -64,7 +79,9 @@ Authentication is required before inference; PocketBase verification failure
 returns 503. After authentication, persistence is best effort and write failures
 do not stop inference. Creator IDs come from verified sessions, never client input.
 Legacy creator fields remain empty; deleting a user does not cascade-delete analyses.
-No user-facing analysis retrieval or per-user search/access rules are added yet.
+No user-facing analysis retrieval or search endpoint is added yet. The owner-write
+rules protect attribution but do not distinguish Python from a local process
+holding the same user token; database network isolation remains essential.
 Stream disconnects mark unfinished analysis Failed, but there is no recovery queue
 for process crashes or failed final writes.
 

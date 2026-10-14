@@ -140,7 +140,6 @@ def test_requests_share_runtime_and_cleanup(loaders, monkeypatch):
             "embedding_model_id": "google/embeddinggemma-2",
             "embedding_model_loaded": True,
             "pocketbase_available": True,
-            "pocketbase_persistence_ready": True,
         }
         runner.assert_not_called()
         for _ in range(2):
@@ -227,7 +226,7 @@ def test_bad_categories_prevent_model_loading(loaders, monkeypatch):
 
 
 def test_gemma_generation_loader(loaders, monkeypatch):
-    monkeypatch.setenv("MODEL_ID", "google/gemma-4-E2B-it")
+    monkeypatch.setenv("MODEL_ID", "google/gemma-4-26B-A4B-it")
     config = backend.AutoConfig.from_pretrained.return_value
     config.model_type = "gemma4"
     processor = Mock()
@@ -240,9 +239,9 @@ def test_gemma_generation_loader(loaders, monkeypatch):
         assert runtime.processor is processor
         assert runtime.tokenizer is processor.tokenizer
         assert runtime.model is model_loader.return_value
-        processor_loader.assert_called_once_with("google/gemma-4-E2B-it")
+        processor_loader.assert_called_once_with("google/gemma-4-26B-A4B-it")
         model_loader.assert_called_once_with(
-            "google/gemma-4-E2B-it", config=config, dtype="auto"
+            "google/gemma-4-26B-A4B-it", config=config, dtype="auto"
         )
         runtime.model.to.assert_called_once_with("cpu")
         runtime.model.eval.assert_called_once_with()

@@ -36,11 +36,13 @@ It is read by Vite from `.env` or the process environment (which takes precedenc
 and configures the proxy. Vite also exposes `VITE_` settings to browser code;
 use a public backend URL without credentials. Restart Vite after changing it.
 Start the backend separately using the instructions in `../backend/README.md`.
-Configure the backend's `POCKETBASE_TOKEN`, `AUTH_ALLOWED_ORIGINS` and
+Configure the backend's loopback `POCKETBASE_URL`, `AUTH_ALLOWED_ORIGINS` and
 `AUTH_COOKIE_SECURE` as described there. All browser auth calls use `/api/auth/*`;
 the same proxy forwards Cookie, Set-Cookie and Origin. Production needs one
 same-origin HTTPS reverse proxy with those headers preserved. PocketBase user
-sessions and the server superuser token must never be placed in `VITE_` settings.
+session tokens must never be placed in `VITE_` settings. No superuser token is
+needed; Python uses verified user sessions and PocketBase is private. Do not
+forward any frontend/proxy path directly to PocketBase.
 
 The browser posts `{ "text": "..." }` to `/api/analyze-event/stream`. Both `pnpm dev`
 and `pnpm preview` proxy `/api/*` to `VITE_API_URL`, stripping the `/api` prefix.

@@ -94,8 +94,6 @@ def register(payload: RegisterRequest, request: Request, response: Response):
     if payload.password != payload.password_confirm:
         raise HTTPException(422, "Lösenorden stämmer inte överens.")
     client = request.app.state.pocketbase
-    if not client.has_token:
-        raise HTTPException(503, "Registrering är inte tillgänglig just nu.")
     try:
         result = client.http.post("/api/collections/users/records", json={
             "email": str(payload.email), "password": payload.password, "passwordConfirm": payload.password_confirm,

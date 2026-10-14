@@ -15,11 +15,11 @@ a CUDA 12.8-compatible NVIDIA driver; the wheels supply the CUDA runtime, so a
 separate CUDA toolkit is not needed. Both profiles cannot be enabled together.
 Plain `uv sync` does not install PyTorch; select a profile when running the API.
 
-Configure a Hugging Face model ID or local model directory compatible with
-`AutoModel` and `AutoTokenizer`, or a Gemma 4 checkpoint, then launch:
+Use [`google/gemma-4-26B-A4B-it`](https://huggingface.co/google/gemma-4-26B-A4B-it)
+for event analysis, then launch:
 
 ```powershell
-$env:MODEL_ID = 'google/gemma-4-E2B-it'
+$env:MODEL_ID = 'google/gemma-4-26B-A4B-it'
 $env:MODEL_DEVICE = 'auto'
 uv run --extra CPU uvicorn app:app
 # Or use the CUDA profile:
@@ -31,6 +31,10 @@ Auto selects CUDA when available and otherwise CPU; explicit CUDA fails startup
 if unavailable. Startup loads `backend/.env` using `python-dotenv`. You can put
 `MODEL_ID` and `MODEL_DEVICE` there instead of setting them in PowerShell.
 Existing process environment variables take precedence over `.env` values.
+For an existing installation, update `MODEL_ID` in your local `.env` or process
+environment and restart the backend. The 26B A4B checkpoint is a mixture-of-experts
+model; its active parameter count does not mean only 4B parameters need to fit
+in memory. The current loader places the full checkpoint on CPU or GPU 0.
 `LOG_LEVEL` defaults to `INFO` and controls backend and Uvicorn logging from
 application startup onward. Set it in `.env` to `DEBUG`, `INFO`, `WARNING`,
 `ERROR`, or `CRITICAL` (case insensitive), then restart the service. Invalid
@@ -100,18 +104,19 @@ synchronized around that work only at DEBUG. Text and vectors are never logged.
 
 Startup creates a reusable HTTP client for local PocketBase at
 `http://127.0.0.1:8090`, checks `/api/health`, and closes the client on shutdown
-after embedding workers finish. `POCKETBASE_URL` overrides the address. Requests
+after embedding workers finish. `POCKETBASE_URL` overrides the loopback HTTP address
+(127.0.0.1, localhost or ::1); non-loopback URLs, credentials and URL paths are rejected. Requests
 use a two-second timeout per HTTP operation and ignore proxy environment variables.
 PocketBase being offline does not prevent startup; model loading
-requirements still apply. Startup logs availability and persistence readiness.
+requirements still apply. Startup logs availability.
 
-Set `POCKETBASE_TOKEN` to a PocketBase superuser API token in the backend's local
-environment or `.env`. Apply the collection migrations and restart PocketBase
-before starting the backend. The Analysis record API stays locked; the backend
-sends the token in the `Authorization` header. Without a token, writes are
-disabled and startup logs a warning. An expired/invalid token or missing collection
-also reports persistence as unavailable. Tokens are never returned by `/health`
-or included in persistence logs. See the
+No backend superuser credential is required. `POCKETBASE_TOKEN` is no longer read;
+remove an old entry from local configuration. Apply the collection migrations and
+restart PocketBase before starting the backend. Python verifies/refreshes the
+user's session, then sends that refreshed user token in the Authorization header
+for every create/update in that analysis, including asynchronous embedding writes.
+Tokens are kept per analysis and never placed in the shared client's headers,
+returned by `/health`, or included in persistence logs. See the
 [PocketBase authentication guide](https://pocketbase.io/docs/authentication/).
 
 Both analysis endpoints create one Analysis record after verifying the session and before submitting inference,
@@ -136,16 +141,42 @@ snapshot, so a subsequent successful update recovers missed intermediate writes.
 Failed final writes have no background retry or durable queue. A stream disconnect
 marks unfinished category analysis `Failed` (error code 499), but process crashes
 can still leave `Processing` records requiring future recovery.
+If a user token expires or is revoked during inference, subsequent writes can
+fail; there is no privileged fallback or background reauthentication. Analysis
+still returns its computed results and failed writes are logged.
+
+## Private PocketBase boundary
+
+Browsers communicate only with Python through `/api`; do not expose PocketBase
+or forward any public route to its port. The Go service rejects non-loopback
+listener addresses and direct HTTPS mode, including explicit command-line flags.
+Run `go run . serve --http=127.0.0.1:8090`; HTTPS belongs to the reverse proxy in
+front of Python/frontend. PocketBase's dashboard remains available locally.
+
+The Analysis create rule requires a users identity and matching `created_by`.
+Updates require the same creator and cannot change `created_by`, `analysis_id`,
+or `original_text`. Listing, viewing and deletion remain locked; no frontend
+database query/search routes exist yet. Public users registration is allowed by
+its create rule, while the other user record operations remain locked. Python
+exposes only email/password registration and model-generated analysis operations.
+PocketBase also rejects registration of verified/visibility/custom-ID values and
+strips hidden token-key input before rule evaluation.
+
+This design relies on local process/network isolation: a process able to call
+PocketBase directly with a user's token has that user's result-write permissions.
+The Origin allowlist protects Python's browser endpoints; it does not make an
+exposed PocketBase safe. Do not add a generic database proxy to Python.
 
 ## Login and registration
 
 The browser uses FastAPI through the existing same-origin `/api` proxy. PocketBase
-remains on localhost; its superuser token is never sent to the frontend.
+remains on localhost; no superuser token is used by the backend.
 Apply migrations and restart PocketBase so the existing/default `users` auth
 collection has required unique email, email/password login, an eight-character
 password minimum, and seven-day tokens. Existing accounts and token secrets are
-preserved. User record APIs remain locked; FastAPI mediates public registration
-with `POCKETBASE_TOKEN`. New accounts sign in immediately without email verification.
+preserved. The users create rule permits anonymous registration; FastAPI mediates
+it without any Authorization header. Other user record APIs remain locked.
+New accounts sign in immediately without email verification.
 Authentication alert emails are disabled for this initial flow; no SMTP is needed.
 
 | Endpoint | Input | Success |
@@ -159,7 +190,7 @@ The HttpOnly `event_analytics_session` cookie has Path `/`, SameSite=Lax and a
 seven-day Max-Age. The session endpoint verifies/refreshes it with PocketBase's
 `users/auth-refresh`; every inference request independently verifies the user
 before creating records or submitting model work. The shared HTTP client uses
-per-request user authorization without changing its server superuser token.
+per-request user authorization without any default Authorization header.
 Responses contain only user ID/email; auth responses, including failures, use
 `Cache-Control: no-store`. Passwords/tokens are not logged or echoed in validation errors.
 
@@ -169,7 +200,7 @@ origins (scheme, host and port; no paths or wildcards). Defaults allow localhost
 and 127.0.0.1 on ports 5173, 4173 and 8000. Every state-changing auth/inference POST
 must have an allowed `Origin` header, including CLI clients. Keep Cookie,
 Set-Cookie and Origin headers intact through the production reverse proxy.
-Never put `POCKETBASE_TOKEN` in Vite environment variables.
+No PocketBase credentials belong in Vite environment variables.
 
 Missing/invalid sessions return 401. PocketBase failure during verification returns
 503 without running inference; backend startup and `/health` still work. After
@@ -178,7 +209,7 @@ invalid registration returns 422. If the account was created but automatic login
 failed, the response has `detail.account_created: true` and the frontend switches
 to login without retrying registration. Logout clears only this browser's cookie;
 it does not revoke tokens on other devices. There is no password reset, OAuth,
-email verification, retrieval endpoint or per-user search/access policy yet.
+email verification, retrieval endpoint or per-user search feature yet.
 
 ## API
 
@@ -187,14 +218,16 @@ Interactive documentation: `http://127.0.0.1:8000/docs`.
 `GET /health` returns HTTP 200 once startup completes, reporting the loaded
 model ID and selected device without running inference. Each call probes PocketBase
 again, so outage/recovery is visible without restarting the backend.
-`pocketbase_available` means the health endpoint responded successfully;
-`pocketbase_persistence_ready` also requires a configured token that can read the
-Analysis collection schema. This checks configuration/access, not a test write.
+`pocketbase_available` means the health endpoint responded successfully.
+The former `pocketbase_persistence_ready` field is removed: a public health check
+cannot establish a particular user's write permission or validate private schemas.
+Each authenticated record write checks its own access; missing/misconfigured
+collections or failed writes are logged separately.
 PocketBase failure leaves top-level `status: "ok"` because model health is separate;
 authenticated requests still need PocketBase to verify their session. Example:
 
 ```json
-{"status":"ok","model_id":"google/gemma-4-E2B-it","device":"cpu","model_loaded":true,"embedding_model_id":"google/embeddinggemma-2","embedding_model_loaded":true,"pocketbase_available":true,"pocketbase_persistence_ready":true}
+{"status":"ok","model_id":"google/gemma-4-26B-A4B-it","device":"cpu","model_loaded":true,"embedding_model_id":"google/embeddinggemma-2","embedding_model_loaded":true,"pocketbase_available":true}
 ```
 
 ```powershell

@@ -153,10 +153,9 @@ async def lifespan(app: FastAPI):
         app.state.pocketbase = pocketbase
         try:
             database_health = await to_thread(pocketbase.check_health)
-            logger.info("PocketBase connection checked (available=%s, persistence_ready=%s)",
-                        database_health["pocketbase_available"], database_health["pocketbase_persistence_ready"])
-            if not database_health["pocketbase_persistence_ready"]:
-                logger.warning("PocketBase persistence unavailable; backend startup continues. Check PocketBase and POCKETBASE_TOKEN. User sessions require PocketBase verification.")
+            logger.info("PocketBase connection checked (available=%s)", database_health["pocketbase_available"])
+            if not database_health["pocketbase_available"]:
+                logger.warning("PocketBase unavailable; backend startup continues. User sessions require PocketBase verification.")
             async with model_lifespan(app):
                 yield
         finally:
@@ -325,7 +324,7 @@ def analyze_event(payload: AnalyzeEventRequest, request: Request, response: Resp
     analysis_id = str(uuid4())
     response.headers["X-Analysis-ID"] = analysis_id
     logger.info("POST /analyze-event triggered (analysis_id=%s, text_length=%d)", analysis_id, len(payload.text))
-    persistence = AnalysisPersistence(request.app.state.pocketbase, analysis_id, payload.text, user.id)
+    persistence = AnalysisPersistence(request.app.state.pocketbase, analysis_id, payload.text, user.id, user.token)
     future = None
     try:
         future = submit_embedding(payload.text, request)
@@ -390,7 +389,7 @@ def analyze_event_stream(payload: AnalyzeEventRequest, request: Request,
     logger.info("POST /analyze-event/stream triggered (analysis_id=%s, text_length=%d)", analysis_id, len(payload.text))
     runtime = request.app.state.runtime
     categories = request.app.state.workflow_categories
-    persistence = AnalysisPersistence(request.app.state.pocketbase, analysis_id, payload.text, user.id)
+    persistence = AnalysisPersistence(request.app.state.pocketbase, analysis_id, payload.text, user.id, user.token)
     try:
         future = submit_embedding(payload.text, request)
     except Exception:
