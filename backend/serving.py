@@ -26,6 +26,7 @@ class VllmSettings:
     model_id: str
     retry_limit: int
     gpu_memory_utilization: float
+    kv_cache_memory_bytes: int | None = None
 
     @classmethod
     def from_environment(cls):
@@ -44,12 +45,21 @@ class VllmSettings:
         if device == "cpu" or not torch.cuda.is_available():
             raise RuntimeError("SERVING_ENGINE=vllm requires an available CUDA device and MODEL_DEVICE=auto or cuda")
         try:
-            memory = float(os.environ.get("VLLM_GPU_MEMORY_UTILIZATION", "0.70"))
+            memory = float(os.environ.get("VLLM_GPU_MEMORY_UTILIZATION", "0.50"))
             if not math.isfinite(memory) or not 0 < memory <= 1:
                 raise ValueError
         except ValueError as exc:
             raise RuntimeError("VLLM_GPU_MEMORY_UTILIZATION must be finite and greater than 0 and at most 1") from exc
-        return cls(model_id, retry_limit, memory)
+        cache_value = os.environ.get("VLLM_KV_CACHE_MEMORY_BYTES", "").strip()
+        cache_bytes = None
+        if cache_value:
+            try:
+                cache_bytes = int(cache_value)
+                if cache_bytes <= 0:
+                    raise ValueError
+            except ValueError as exc:
+                raise RuntimeError("VLLM_KV_CACHE_MEMORY_BYTES must be a positive integer in bytes or blank") from exc
+        return cls(model_id, retry_limit, memory, cache_bytes)
 
 
 class GenerationEngine(Protocol):
@@ -179,6 +189,8 @@ def create_vllm_engine(settings: VllmSettings) -> VllmEngine:
         tensor_parallel_size=1, max_num_seqs=1,
         max_model_len=MAX_INPUT_TOKENS + MAX_OUTPUT_TOKENS,
         gpu_memory_utilization=settings.gpu_memory_utilization,
+        kv_cache_memory_bytes=settings.kv_cache_memory_bytes,
+        language_model_only=True, enforce_eager=True,
         enable_log_requests=False,
     )
     # Embeddings have already initialized CUDA in the parent process.

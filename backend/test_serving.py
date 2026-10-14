@@ -44,7 +44,7 @@ def test_invalid_engine_prevents_loading(monkeypatch, value, pocketbase):
     loader.assert_not_called()
 
 
-@pytest.mark.parametrize("memory,expected", [(None, 0.7), (" 0.5 ", 0.5), ("1", 1)])
+@pytest.mark.parametrize("memory,expected", [(None, 0.5), (" 0.5 ", 0.5), ("1", 1)])
 def test_vllm_memory(settings_environment, monkeypatch, memory, expected):
     if memory is not None:
         monkeypatch.setenv("VLLM_GPU_MEMORY_UTILIZATION", memory)
@@ -57,6 +57,20 @@ def test_vllm_memory(settings_environment, monkeypatch, memory, expected):
 def test_invalid_memory(settings_environment, monkeypatch, value):
     monkeypatch.setenv("VLLM_GPU_MEMORY_UTILIZATION", value)
     with pytest.raises(RuntimeError, match="VLLM_GPU_MEMORY_UTILIZATION"):
+        serving.VllmSettings.from_environment()
+
+
+@pytest.mark.parametrize("value,expected", [(None, None), ("", None), ("  ", None), (" 4294967296 ", 4294967296)])
+def test_vllm_cache_memory(settings_environment, monkeypatch, value, expected):
+    if value is not None:
+        monkeypatch.setenv("VLLM_KV_CACHE_MEMORY_BYTES", value)
+    assert serving.VllmSettings.from_environment().kv_cache_memory_bytes == expected
+
+
+@pytest.mark.parametrize("value", ["0", "-1", "1.5", "nan", "inf", "bad", "4GiB"])
+def test_invalid_cache_memory(settings_environment, monkeypatch, value):
+    monkeypatch.setenv("VLLM_KV_CACHE_MEMORY_BYTES", value)
+    with pytest.raises(RuntimeError, match="VLLM_KV_CACHE_MEMORY_BYTES"):
         serving.VllmSettings.from_environment()
 
 
@@ -113,14 +127,17 @@ def fake_vllm(monkeypatch):
     return SimpleNamespace(engine=engine, args=args, sampling=sampling, loader=loader, calls=calls)
 
 
-def test_engine_arguments_and_cleanup(fake_vllm):
+@pytest.mark.parametrize("cache_bytes", [None, 4294967296])
+def test_engine_arguments_and_cleanup(fake_vllm, cache_bytes):
     async def check():
-        adapter = serving.create_vllm_engine(serving.VllmSettings("test/model", 1, 0.65))
+        adapter = serving.create_vllm_engine(serving.VllmSettings("test/model", 1, 0.65, cache_bytes))
         args = fake_vllm.args.call_args.kwargs
         assert args == {
             "model": "test/model", "dtype": "auto", "trust_remote_code": False,
             "tensor_parallel_size": 1, "max_num_seqs": 1, "max_model_len": 12288,
             "gpu_memory_utilization": 0.65, "enable_log_requests": False,
+            "kv_cache_memory_bytes": cache_bytes, "language_model_only": True,
+            "enforce_eager": True,
         }
         await adapter.close()
         await adapter.close()
@@ -358,6 +375,7 @@ def test_transformers_does_not_import_vllm(api_runtime, monkeypatch):
         return original(name, *args, **kwargs)
     monkeypatch.setattr(builtins, "__import__", guarded)
     monkeypatch.setenv("VLLM_GPU_MEMORY_UTILIZATION", "invalid but unused")
+    monkeypatch.setenv("VLLM_KV_CACHE_MEMORY_BYTES", "invalid but unused")
     with TestClient(backend.app):
         pass
 

@@ -12,6 +12,7 @@ from persistence import PocketBaseClient
 def serving_environment(monkeypatch):
     monkeypatch.delenv("SERVING_ENGINE", raising=False)
     monkeypatch.delenv("VLLM_GPU_MEMORY_UTILIZATION", raising=False)
+    monkeypatch.delenv("VLLM_KV_CACHE_MEMORY_BYTES", raising=False)
 
 
 @pytest.fixture

@@ -71,8 +71,12 @@ vLLM uses an embedded async Python engine, with internal worker processes and no
 additional HTTP service. It requires Linux/CUDA and rejects explicit CPU selection.
 For NVIDIA's Gemma 4 NVFP4 checkpoint it automatically detects saved quantization.
 The engine runs on one GPU with TP=1, one simultaneous sequence, and 12,288 tokens
-of context. `VLLM_GPU_MEMORY_UTILIZATION` defaults to 0.70 and accepts finite values
-in (0, 1]. EmbeddingGemma loads first so its resident GPU memory is visible to
+of context. Text-only loading disables multimodal inputs; eager execution avoids
+CUDA graph memory overhead at a potential throughput cost.
+`VLLM_GPU_MEMORY_UTILIZATION` defaults to 0.50 and accepts finite values in (0, 1].
+Optional positive-integer `VLLM_KV_CACHE_MEMORY_BYTES` overrides automatic cache
+sizing and the utilization budget. Neither setting enforces a hard limit on
+total process or Spark unified memory. EmbeddingGemma loads first so its resident GPU memory is visible to
 vLLM. Worker creation defaults to spawn, avoiding forks after CUDA initialization.
 Workflow threads bridge synchronous generation to the engine's application event
 loop, submitting chat-template token IDs with thinking disabled and greedy sampling.

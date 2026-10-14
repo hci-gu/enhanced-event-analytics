@@ -52,7 +52,8 @@ For a DGX Spark running Linux, install the CUDA extra and configure:
 SERVING_ENGINE=vllm
 MODEL_ID=nvidia/Gemma-4-26B-A4B-NVFP4
 MODEL_DEVICE=cuda
-VLLM_GPU_MEMORY_UTILIZATION=0.70
+VLLM_GPU_MEMORY_UTILIZATION=0.50
+VLLM_KV_CACHE_MEMORY_BYTES=
 ```
 
 Launch with `uv run --extra CUDA uvicorn app:app --workers 1`. The embedded
@@ -67,11 +68,25 @@ for vLLM. The latter loads saved quantized weights, without re-quantizing each b
 Remote model code is not enabled implicitly.
 
 `VLLM_GPU_MEMORY_UTILIZATION` is the fraction of total GPU memory budgeted for
-vLLM, including its model and KV cache. It defaults to `0.70`, must be finite and
+vLLM, including its model and KV cache. It defaults to `0.50`, must be finite and
 greater than zero and at most one, and is validated only in vLLM mode. Startup
 loads EmbeddingGemma on CUDA first so its resident allocation is visible to vLLM.
-Allow additional headroom for embedding activations and the OS; 70% is a starting
-budget, not a guarantee that any selected checkpoint fits.
+Allow additional headroom for embedding activations and the OS. Spark shares
+physical RAM between CPU and GPU; this budget is not a hard total-memory limit
+or a guarantee that a selected checkpoint fits. Existing `.env` values override
+the new default, so change an existing `0.70` setting explicitly.
+
+`VLLM_KV_CACHE_MEMORY_BYTES` optionally specifies a positive integer allocation
+for the KV cache, in bytes (for example, `4294967296` for 4 GiB). Blank or absent
+uses automatic sizing. When set, vLLM ignores `gpu_memory_utilization` for cache
+sizing. This limits only the KV cache, not model weights, temporary allocations,
+embeddings, or total system memory. Check startup's reported cache capacity: it
+must accommodate the 12,288-token context, or startup fails. The example size
+is not a hardware-verified recommendation.
+
+vLLM uses `language_model_only=True` to disable multimodal inputs and
+`enforce_eager=True` to avoid CUDA graph memory overhead. Eager execution can
+reduce throughput. These settings apply only to the embedded vLLM engine.
 
 The engine uses one GPU, tensor parallel size one, one simultaneous generation
 sequence, and a 12,288-token context budget (8,192 input plus 4,096 output).
