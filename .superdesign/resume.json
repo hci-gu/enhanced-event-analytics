@@ -1,6 +1,31 @@
 {
   "schemaVersion": 1,
   "targets": {
+    "auth": {
+      "targetKind": "new-target",
+      "projectId": "e303c7c5-b1d1-4b65-8c75-241e559ba1cf",
+      "activeDraftId": "2500f7d6-e03f-4add-975d-dcdf90f46f8d",
+      "sourceTarget": "/",
+      "sourceDraftId": "b8e9f1c2-f190-4080-bf9f-01e188454b94",
+      "contextFiles": ["frontend/src/App.tsx", "frontend/src/App.css", "frontend/src/index.css", "frontend/src/colors.css"],
+      "fingerprints": {
+        "frontend/src/App.tsx": "95103B78EBE5E069B574DC83172FEDBB43B830C0E714A5F7A5CAD77A1B71D766",
+        "frontend/src/App.css": "C97BABB71B2AC124E3BCC95FD26B7EEEEDDA7A9AEC7ED8E2A02CDFFA5A72E497",
+        "frontend/src/index.css": "32EA91A2412368E09463DBF83F25D542E8504DF57500CE711A3D792C6CCA49BE",
+        "frontend/src/colors.css": "B2F5F30B3297204EFCEA2688113A248F6FFE09C6457988A7E3F67AAF0F5ED576"
+      },
+      "components": [],
+      "drafts": {
+        "2500f7d6-e03f-4add-975d-dcdf90f46f8d": {
+          "title": "Editorial Auth Screen",
+          "visualDirection": "Approved Editorial ivory/terracotta compact email/password form with registration state",
+          "parentDraftId": "b8e9f1c2-f190-4080-bf9f-01e188454b94",
+          "currentVersion": 1
+        }
+      },
+      "implementation": {"entry": "frontend/src/AuthGate.tsx", "screen": "frontend/src/AuthScreen.tsx", "styles": "frontend/src/AuthScreen.css"},
+      "updatedAt": "2026-10-14T07:16:28Z"
+    },
     "/": {
       "targetKind": "existing-ui",
       "projectId": "e303c7c5-b1d1-4b65-8c75-241e559ba1cf",

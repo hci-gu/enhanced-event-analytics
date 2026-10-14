@@ -10,6 +10,7 @@ dependencies = [
     "python-dotenv>=1.0",
     "transformers>=5.19.0,<6",
     "pillow>=10",
+    "httpx>=0.28",
 ]
 
 [project.optional-dependencies]
@@ -17,7 +18,7 @@ cpu = ["torch>=2.6", "torchvision>=0.21"]
 cuda = ["torch>=2.6", "torchvision>=0.21", "accelerate>=1.1"]
 
 [dependency-groups]
-dev = ["pytest>=8,<10", "httpx>=0.28"]
+dev = ["pytest>=8,<10"]
 
 [tool.uv]
 conflicts = [[{ extra = "cpu" }, { extra = "cuda" }]]

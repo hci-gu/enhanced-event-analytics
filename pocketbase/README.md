@@ -6,9 +6,23 @@ pending migrations, or `go run . serve` to apply them at server startup. Dashboa
 schema edits are not automatically exported; change the versioned migrations for
 future schema updates. Runtime data in `pb_data/` is ignored by Git.
 
+The user migration reuses PocketBase's default `users` auth collection, preserving
+existing accounts and token secrets. It requires unique email, enables password
+login with a minimum of eight characters, and sets seven-day auth tokens.
+User record API rules stay locked; FastAPI handles public registration with its
+server superuser token. Verification is not required, and auth alert emails are
+disabled so this first version needs no mail service. Restart a running PocketBase
+after applying migrations to refresh its collection cache.
+
 Verify with `go build .` and `go test ./...`. Tests use a temporary database and
 check migration application, UUID uniqueness/format, status validation, retained
 partial predictions, timestamps, and locked API access without loading a model.
+
+Successful Analysis record creates and updates emit `Analysis record saved` at
+INFO level through PocketBase's logger, with operation, record ID, backend UUID,
+category status, and embedding status. Input text, titles, predictions, and vectors
+are not included. Success hooks log committed writes, including writes through
+the record API; they do not log collection migrations or failed record writes.
 
 ## Analysis collection
 
@@ -16,6 +30,7 @@ partial predictions, timestamps, and locked API access without loading a model.
 | --- | --- | --- |
 | `id` | PocketBase record ID | Internal identifier; separate from the backend UUID. |
 | `analysis_id` | Required unique text | Existing backend UUID v4 (`X-Analysis-ID` / stream `analysis_id`). |
+| `created_by` | Optional single relation to `users` | Backend-verified creator; empty for legacy records. Indexed with `created`. |
 | `status` | Required single select | `Processing`, `Failed`, or `Complete`. |
 | `embedding_status` | Required single select | `Processing`, `Failed`, or `Complete`, independently of category status. |
 | `original_text` | Required text, up to 2 Mi characters | Immutable snapshot of the trimmed input actually analyzed; preserves internal whitespace. |
@@ -25,13 +40,14 @@ partial predictions, timestamps, and locked API access without loading a model.
 | `created`, `updated` | Automatic dates | Record creation and last update times. |
 | `finished_at` | Optional date | UTC time when category analysis becomes `Complete` or `Failed`; empty while processing. |
 
-All five record API rules are locked (superusers only). Backend persistence and
-authentication are not connected yet; creating this schema does not make analysis
-requests save records. PocketBase validates field types, UUID format/uniqueness,
-and allowed status values, but JSON shapes and lifecycle transitions must be
-validated by the future backend writer.
+All five record API rules are locked (superusers only). FastAPI writes records
+through the HTTP record API using `POCKETBASE_TOKEN`, a configured superuser API
+token. Its default `POCKETBASE_URL` is `http://127.0.0.1:8090`. See
+[backend persistence setup](../backend/README.md#pocketbase-persistence).
+PocketBase validates field types, UUID format/uniqueness, and allowed status values;
+the backend writer manages lifecycle transitions and accumulated workflow results.
 
-The writer should save `original_text` and initialize both status columns to
+The writer saves `original_text` and initializes both status columns to
 `Processing` before inference, save the title when ready,
 and append results after each workflow completes. Preserve partial predictions
 and set `Failed` immediately if any workflow fails. Set `Complete` only after every
@@ -44,6 +60,13 @@ This column tracks generation, not delivery to a future vector index. If analysi
 failure cancels embedding before producing a vector, the writer should mark the
 embedding `Failed` too. Interrupted/crashed runs need recovery so they do not stay `Processing`
 indefinitely; `updated` can identify stale records but is not a worker heartbeat.
+Authentication is required before inference; PocketBase verification failure
+returns 503. After authentication, persistence is best effort and write failures
+do not stop inference. Creator IDs come from verified sessions, never client input.
+Legacy creator fields remain empty; deleting a user does not cascade-delete analyses.
+No user-facing analysis retrieval or per-user search/access rules are added yet.
+Stream disconnects mark unfinished analysis Failed, but there is no recovery queue
+for process crashes or failed final writes.
 
 Example partial predictions (missing keys mean the workflow has not completed):
 
@@ -68,8 +91,8 @@ An event relation could link repeated analyses of the same source event; the
 `original_text` snapshot already lets evidence be checked against its source.
 An input hash can support deduplication but should not prohibit rerunning an event.
 Store model ID/revision and a prompt/category schema version to explain differences
-between runs. User ownership and source URL/publication time can be added when
-authentication and event ingestion are defined. These fields are not added yet.
+between runs. Source URL/publication time can be added when event ingestion is
+defined. These fields are not added yet; creator attribution is implemented.
 
 PocketBase's JSON field can store vectors, but its built-in field types and record
 API do not provide a vector similarity index/search operation. For indexed search,

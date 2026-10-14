@@ -3,6 +3,11 @@
 ![image](assets/system-overview.png)
 
 ## Frontend
+An authentication gate restores the backend-managed HttpOnly session before
+mounting the workspace. Logged-out users see an Editorial email/password form;
+public registration adds password confirmation and signs in immediately. Session
+outages show retry feedback. Logout/session expiry clear workspace state and abort
+active frontend requests. Search and per-user retrieval remain future work.
 TypeScript React homepage with an event textbox, analysis submission, and a
 search input (search results are not implemented). The browser calls
 `POST /api/analyze-event/stream`; the development/preview proxy forwards this to the
@@ -85,7 +90,7 @@ with `embedding: null` and a structured 502 embedding error. Analysis failures
 retain existing terminal behavior. Queued embedding work is cancelled on failure
 or stream closure; running inference may finish with its result discarded.
 Shutdown waits for active embedding work before releasing the runtimes.
-The frontend accepts but does not retain these additional fields. No text/vector
+The frontend accepts but does not retain these additional fields. No vector
 persistence, related-event search, clustering, or graph storage is implemented.
 
 `workflows.py` defines independent workflow functions and the `WORKFLOWS` registry.
@@ -122,12 +127,23 @@ output tokens to accommodate quotes, keeping the existing 8192 input-token limit
 
 Each validated request keeps a fresh UUID v4 in logs and the `X-Analysis-ID`
 header, also included as `analysis_id` in stream metadata. Titles are display
-metadata and do not replace this identifier. UUIDs are retained for future storage;
-neither titles nor identifiers are persisted yet.
+metadata and do not replace this identifier. UUIDs, titles, trimmed original text,
+and partial workflow predictions including evidence are persisted to PocketBase
+when a superuser API token is configured. A shared HTTP client connects to
+`http://127.0.0.1:8090` by default, probes health at startup and on `/health`, and
+closes after embedding workers at shutdown. PocketBase outages do not stop startup
+or model health. Inference endpoints require a users session verified through
+PocketBase; verification outages return 503. Health exposes separate availability
+and persistence readiness flags. Auth login/register/session/logout endpoints
+proxy PocketBase and use HttpOnly SameSite=Lax cookies, seven-day sessions,
+configurable Secure cookies, and an exact Origin allowlist for state-changing requests.
+New analysis records contain the verified `created_by` user relation.
+Writes are best effort, with INFO success logs and warnings on failure; failed
+creates are not retried and failed final updates have no durable retry queue.
 
 The evidence-linked summary and LLM title generation milestones are implemented.
 A sidebar to switch event analyses remains future work. A versioned PocketBase Analysis collection exists,
-but backend record writes remain unimplemented;
+and backend record writes are implemented;
 the diagram below describes the intended architecture.
 
 ![backend](assets/system-backend.png)
@@ -136,12 +152,16 @@ the diagram below describes the intended architecture.
 Data layer using Pocketbase, serving using Go. 
 
 Collections
+- users (default auth collection reused; required unique email, password login,
+  minimum eight-character passwords and seven-day auth tokens; locked record APIs)
 - Events (event_id, group_id: nullable, text)
 - Analysis (`analysis_id`: unique backend UUID v4, `status`: Processing/Failed/Complete,
+  optional single `created_by` relation to users, indexed with created; legacy
+  records remain unattributed and user deletion does not cascade-delete analyses,
   independent `embedding_status`: Processing/Failed/Complete, required `original_text`,
   `title`, `predictions`: workflow-keyed JSON including evidence, `error`: failure JSON,
   automatic `created`/`updated` timestamps, optional `finished_at` for the category
   analysis terminal time). Record API access is superuser-only.
-  Backend persistence must mark Failed if any category workflow fails and retain
+  Backend persistence marks Failed if any category workflow fails and retains
   completed predictions; embedding failures are tracked separately. See
   [PocketBase schema and lifecycle](pocketbase/README.md).

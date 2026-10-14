@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+from asyncio import to_thread
 from _thread import LockType
 from concurrent.futures import Future, ThreadPoolExecutor
 from contextlib import asynccontextmanager, contextmanager
@@ -14,9 +15,12 @@ from typing import Annotated, Any, Literal
 from uuid import uuid4
 
 import torch
+from anyio import CancelScope
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Request, Response
-from fastapi.responses import StreamingResponse
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from fastapi.exceptions import RequestValidationError
+from fastapi.exception_handlers import http_exception_handler, request_validation_exception_handler
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 from transformers import (
     AutoConfig,
@@ -31,6 +35,8 @@ from transformers import (
 
 from workflows import WorkflowError, iter_workflow_events, load_retry_limit, load_workflow_categories, run_workflows
 from embeddings import embed_document, load_embedding_runtime
+from persistence import AnalysisPersistence, create_pocketbase_client
+from auth import UserSession, require_origin, require_user, router as auth_router
 
 
 logger = logging.getLogger("uvicorn.error.app")
@@ -42,7 +48,7 @@ def configure_logging() -> None:
         raise RuntimeError("LOG_LEVEL must be DEBUG, INFO, WARNING, ERROR, or CRITICAL")
     for name in (
         "uvicorn", "uvicorn.error", "uvicorn.access",
-        "uvicorn.error.app", "uvicorn.error.workflows", "uvicorn.error.embeddings",
+        "uvicorn.error.app", "uvicorn.error.workflows", "uvicorn.error.embeddings", "uvicorn.error.persistence",
     ):
         logging.getLogger(name).setLevel(level)
 
@@ -143,6 +149,22 @@ def load_runtime() -> ModelRuntime:
 async def lifespan(app: FastAPI):
     load_dotenv(dotenv_path=Path(__file__).with_name(".env"), override=False)
     configure_logging()
+    with create_pocketbase_client() as pocketbase:
+        app.state.pocketbase = pocketbase
+        try:
+            database_health = await to_thread(pocketbase.check_health)
+            logger.info("PocketBase connection checked (available=%s, persistence_ready=%s)",
+                        database_health["pocketbase_available"], database_health["pocketbase_persistence_ready"])
+            if not database_health["pocketbase_persistence_ready"]:
+                logger.warning("PocketBase persistence unavailable; backend startup continues. Check PocketBase and POCKETBASE_TOKEN. User sessions require PocketBase verification.")
+            async with model_lifespan(app):
+                yield
+        finally:
+            del app.state.pocketbase
+
+
+@asynccontextmanager
+async def model_lifespan(app: FastAPI):
     with loading_stage("categories"):
         categories = load_workflow_categories()
     app.state.runtime = load_runtime()
@@ -162,6 +184,25 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Enhanced Event Analytics", lifespan=lifespan)
+app.include_router(auth_router)
+
+
+@app.exception_handler(HTTPException)
+async def http_error(request: Request, exc: HTTPException):
+    response = await http_exception_handler(request, exc)
+    if request.url.path.startswith("/auth/"):
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error(request: Request, exc: RequestValidationError):
+    if request.url.path.startswith("/auth/"):
+        # Pydantic's default errors echo input, which can include passwords.
+        return JSONResponse(status_code=422, content={"detail": [
+            {key: error[key] for key in ("type", "loc", "msg")} for error in exc.errors()
+        ]}, headers={"Cache-Control": "no-store"})
+    return await request_validation_exception_handler(request, exc)
 
 
 @app.get("/health", summary="Check service health")
@@ -174,6 +215,7 @@ async def health(request: Request) -> dict[str, str | bool]:
         "model_loaded": True,
         "embedding_model_id": request.app.state.embedding_runtime.model_id,
         "embedding_model_loaded": True,
+        **await to_thread(request.app.state.pocketbase.check_health),
     }
 
 
@@ -218,13 +260,25 @@ def embedding_result(future: Future) -> dict[str, Any]:
         return {"embedding": None, "embedding_error": {"code": 502, "message": "Embedding inference failed"}}
 
 
+def track_embedding(future: Future, persistence: AnalysisPersistence) -> None:
+    def completed(done: Future):
+        try:
+            DocumentEmbedding(**done.result())
+            success = True
+        except Exception:
+            success = False
+        persistence.embedding_completed(success)
+    future.add_done_callback(completed)
+
+
 @app.post(
     "/embed-event", response_model=EmbedEventResponse,
     summary="Embed event text as a document",
     description="Return a normalized 768-dimensional document vector. Long inputs are right-truncated to 8192 tokens.",
     responses={502: {"description": "Embedding inference failed or returned an invalid vector"}},
 )
-def embed_event(payload: AnalyzeEventRequest, request: Request) -> EmbedEventResponse:
+def embed_event(payload: AnalyzeEventRequest, request: Request,
+                user: UserSession = Depends(require_user), origin: None = Depends(require_origin)) -> EmbedEventResponse:
     future = submit_embedding(payload.text, request)
     try:
         return EmbedEventResponse(embedding=DocumentEmbedding(**future.result()))
@@ -266,22 +320,35 @@ class AnalyzeEventResponse(BaseModel):
         503: {"description": "Loaded model does not support the generation workflow"},
     },
 )
-def analyze_event(payload: AnalyzeEventRequest, request: Request, response: Response) -> AnalyzeEventResponse:
+def analyze_event(payload: AnalyzeEventRequest, request: Request, response: Response,
+                  user: UserSession = Depends(require_user), origin: None = Depends(require_origin)) -> AnalyzeEventResponse:
     analysis_id = str(uuid4())
     response.headers["X-Analysis-ID"] = analysis_id
     logger.info("POST /analyze-event triggered (analysis_id=%s, text_length=%d)", analysis_id, len(payload.text))
-    future = submit_embedding(payload.text, request)
+    persistence = AnalysisPersistence(request.app.state.pocketbase, analysis_id, payload.text, user.id)
+    future = None
     try:
+        future = submit_embedding(payload.text, request)
+        track_embedding(future, persistence)
         results = run_workflows(
-            payload.text, request.app.state.runtime, request.app.state.workflow_categories
+            payload.text, request.app.state.runtime, request.app.state.workflow_categories,
+            on_event=persistence.on_event,
         )
+        persistence.finish(results=results)
         return AnalyzeEventResponse(**results, **embedding_result(future))
     except WorkflowError as exc:
+        persistence.finish(error={"workflow_id": persistence.current_workflow, "code": exc.status_code, "message": str(exc)})
         raise HTTPException(
             status_code=exc.status_code, detail=str(exc), headers={"X-Analysis-ID": analysis_id}
         ) from exc
+    except Exception:
+        persistence.finish(error={"workflow_id": persistence.current_workflow, "code": 500, "message": "Unexpected analysis failure"})
+        raise
     finally:
-        future.cancel()
+        if future is not None:
+            future.cancel()
+        else:
+            persistence.embedding_completed(False)
 
 
 def encode_event(event: str, data: dict[str, Any]) -> str:
@@ -291,15 +358,24 @@ def encode_event(event: str, data: dict[str, Any]) -> str:
 class EmbeddingStreamingResponse(StreamingResponse):
     """Cancel queued embedding work even if the stream disconnects before iteration."""
 
-    def __init__(self, *args, embedding_future: Future, **kwargs):
+    def __init__(self, *args, embedding_future: Future, persistence: AnalysisPersistence, **kwargs):
         super().__init__(*args, **kwargs)
         self.embedding_future = embedding_future
+        self.persistence = persistence
 
     async def __call__(self, scope, receive, send):
         try:
             await super().__call__(scope, receive, send)
         finally:
-            self.embedding_future.cancel()
+            def close_stream():
+                self.embedding_future.cancel()
+                self.persistence.finish(error={
+                    "workflow_id": self.persistence.current_workflow, "code": 499, "message": "Analysis stream interrupted",
+                })
+            # A disconnect cancels Starlette's task group. Shield the final write
+            # and keep synchronous HTTP work off the event loop.
+            with CancelScope(shield=True):
+                await to_thread(close_stream)
 
 
 @app.post(
@@ -308,22 +384,32 @@ class EmbeddingStreamingResponse(StreamingResponse):
     summary="Stream sequential workflow progress and results",
     responses={200: {"content": {"text/event-stream": {"schema": {"type": "string"}}}}},
 )
-def analyze_event_stream(payload: AnalyzeEventRequest, request: Request) -> StreamingResponse:
+def analyze_event_stream(payload: AnalyzeEventRequest, request: Request,
+                         user: UserSession = Depends(require_user), origin: None = Depends(require_origin)) -> StreamingResponse:
     analysis_id = str(uuid4())
     logger.info("POST /analyze-event/stream triggered (analysis_id=%s, text_length=%d)", analysis_id, len(payload.text))
     runtime = request.app.state.runtime
     categories = request.app.state.workflow_categories
-    future = submit_embedding(payload.text, request)
+    persistence = AnalysisPersistence(request.app.state.pocketbase, analysis_id, payload.text, user.id)
+    try:
+        future = submit_embedding(payload.text, request)
+    except Exception:
+        persistence.embedding_completed(False)
+        persistence.finish(error={"workflow_id": None, "code": 500, "message": "Embedding submission failed"})
+        raise
+    track_embedding(future, persistence)
 
     def stream():
         current_id = None
         try:
             for event, data in iter_workflow_events(payload.text, runtime, categories):
+                persistence.on_event(event, data)
                 if event == "analysis_started":
                     data = {**data, "analysis_id": analysis_id}
                 if event == "workflow_started":
                     current_id = data["id"]
                 if event == "analysis_completed":
+                    persistence.finish()
                     data = {**data, **embedding_result(future)}
                 yield encode_event(event, data)
         except Exception as exc:
@@ -335,6 +421,7 @@ def analyze_event_stream(payload: AnalyzeEventRequest, request: Request) -> Stre
                 503: "Den laddade modellen stöder inte analysen.",
             }.get(code, "Ett oväntat serverfel avbröt analysen.")
             logger.exception("Streaming analysis failed (analysis_id=%s, workflow=%s)", analysis_id, current_id)
+            persistence.finish(error={"workflow_id": current_id, "message": message, "code": code})
             yield encode_event("workflow_failed", {
                 "id": current_id, "message": message, "code": code,
             })
@@ -342,7 +429,7 @@ def analyze_event_stream(payload: AnalyzeEventRequest, request: Request) -> Stre
             future.cancel()
 
     # Starlette advances synchronous iterators in its worker pool, not the event loop.
-    return EmbeddingStreamingResponse(stream(), embedding_future=future, media_type="text/event-stream", headers={
+    return EmbeddingStreamingResponse(stream(), embedding_future=future, persistence=persistence, media_type="text/event-stream", headers={
         "Cache-Control": "no-cache, no-transform",
         "X-Accel-Buffering": "no",
         "X-Analysis-ID": analysis_id,

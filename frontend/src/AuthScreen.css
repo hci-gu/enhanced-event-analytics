@@ -1,0 +1,61 @@
+.auth-shell { min-height: 100dvh; height: auto; }
+.auth-header { padding: 24px 32px; }
+.auth-header .app-brand { cursor: default; }
+.auth-content {
+  display: flex;
+  flex: 1;
+  justify-content: center;
+  align-items: center;
+  padding: 48px 24px;
+}
+.auth-section { width: min(100%, 420px); text-align: center; animation: editorial-reveal 400ms ease both; }
+.auth-section h1 { margin: 0 0 32px; font-size: clamp(36px, 5vw, 48px); }
+.auth-card {
+  padding: 4px;
+  border: 1px solid var(--border-color);
+  background: var(--textbox-background);
+  box-shadow: 4px 4px 0 var(--border-color);
+  margin-bottom: 24px;
+}
+.auth-card form { padding: 32px; border: 1px solid var(--border-color); text-align: left; }
+.auth-field { margin-bottom: 24px; }
+.auth-field .field-label { margin-bottom: 8px; }
+.auth-field input {
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-color);
+  transition: border-color 180ms ease;
+}
+.auth-field input:focus { border-color: var(--focus-color); }
+.auth-help { margin: 8px 0 0; color: var(--workflow-muted-text); font-size: 12px; }
+.auth-feedback { margin: 0 0 24px; color: var(--status-error-text); line-height: 1.6; overflow-wrap: anywhere; }
+.auth-submit {
+  width: 100%;
+  min-height: 48px;
+  padding: 16px 24px;
+  border: 1px solid var(--button-border);
+  background: var(--button-background);
+  color: var(--button-text);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background-color 180ms ease;
+}
+.auth-submit:hover:not(:disabled) { background: var(--button-hover-background); }
+.auth-submit:disabled { background: var(--button-disabled-background); border-color: var(--border-color); color: var(--button-disabled-text); cursor: wait; }
+.auth-switch:disabled { color: var(--workflow-muted-text); cursor: wait; }
+.auth-session-message { line-height: 1.6; }
+.logout-action { flex-shrink: 0; min-height: 40px; }
+@media (max-width: 640px) {
+  .auth-header { padding: 24px; }
+  .auth-content { padding: 32px 24px; }
+  .auth-card form { padding: 24px; }
+  .toolbar-controls { flex-wrap: wrap; gap: 12px; }
+  .toolbar-controls .search-row { flex: 1; }
+}

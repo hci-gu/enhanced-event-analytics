@@ -381,11 +381,14 @@ def iter_workflow_events(
 
 
 def run_workflows(
-    text: str, runtime: "ModelRuntime", categories: dict[str, tuple[Category, ...]]
+    text: str, runtime: "ModelRuntime", categories: dict[str, tuple[Category, ...]],
+    *, on_event: Callable[[str, dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
     results = {}
     title = FALLBACK_TITLE
     for event, data in iter_workflow_events(text, runtime, categories):
+        if on_event is not None:
+            on_event(event, data)
         if event == "title_completed":
             title = data["title"]
         if event == "workflow_completed":

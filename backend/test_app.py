@@ -15,7 +15,11 @@ EMBEDDING = {
 
 
 @pytest.fixture
-def loaders(monkeypatch):
+def loaders(monkeypatch, pocketbase):
+    # Existing inference tests focus on analysis contracts; auth has its own suite.
+    monkeypatch.setitem(backend.app.dependency_overrides, backend.require_user,
+                        lambda: backend.UserSession("testuser0000001", "user@example.com", "user-token"))
+    monkeypatch.setitem(backend.app.dependency_overrides, backend.require_origin, lambda: None)
     monkeypatch.setattr(backend, "load_embedding_runtime", Mock(return_value=Mock(model_id="google/embeddinggemma-2")))
     monkeypatch.setattr(backend, "embed_document", Mock(return_value=EMBEDDING))
     monkeypatch.setattr(backend, "load_dotenv", Mock())
@@ -23,7 +27,7 @@ def loaders(monkeypatch):
     monkeypatch.delenv("RETRY_LIMIT", raising=False)
     for name in (
         "uvicorn", "uvicorn.error", "uvicorn.access",
-        "uvicorn.error.app", "uvicorn.error.workflows", "uvicorn.error.embeddings",
+        "uvicorn.error.app", "uvicorn.error.workflows", "uvicorn.error.embeddings", "uvicorn.error.persistence",
     ):
         target = logging.getLogger(name)
         monkeypatch.setattr(target, "level", target.level)
@@ -135,6 +139,8 @@ def test_requests_share_runtime_and_cleanup(loaders, monkeypatch):
             "model_loaded": True,
             "embedding_model_id": "google/embeddinggemma-2",
             "embedding_model_loaded": True,
+            "pocketbase_available": True,
+            "pocketbase_persistence_ready": True,
         }
         runner.assert_not_called()
         for _ in range(2):
@@ -143,7 +149,8 @@ def test_requests_share_runtime_and_cleanup(loaders, monkeypatch):
             assert response.json() == {"status": "ok", "title": "Testhändelse", "results": empty_results,
                                        "embedding": EMBEDDING, "embedding_error": None}
         assert runner.call_count == 2
-        runner.assert_called_with("Swedish event", runtime, backend.app.state.workflow_categories)
+        assert runner.call_args.args == ("Swedish event", runtime, backend.app.state.workflow_categories)
+        assert callable(runner.call_args.kwargs["on_event"])
         loaders[0].assert_called_once_with("test/model")
         loaders[1].assert_called_once_with(
             "test/model", config=backend.AutoConfig.from_pretrained.return_value

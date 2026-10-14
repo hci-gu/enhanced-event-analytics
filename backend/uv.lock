@@ -232,6 +232,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "fastapi", extra = ["standard"] },
+    { name = "httpx" },
     { name = "pillow" },
     { name = "pydantic" },
     { name = "python-dotenv" },
@@ -253,7 +254,6 @@ cuda = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "httpx" },
     { name = "pytest" },
 ]
 
@@ -261,6 +261,7 @@ dev = [
 requires-dist = [
     { name = "accelerate", marker = "extra == 'cuda'", specifier = ">=1.1" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.142.2" },
+    { name = "httpx", specifier = ">=0.28" },
     { name = "pillow", specifier = ">=10" },
     { name = "pydantic", specifier = ">=2.13.5" },
     { name = "python-dotenv", specifier = ">=1.0" },
@@ -273,10 +274,7 @@ requires-dist = [
 provides-extras = ["cpu", "cuda"]
 
 [package.metadata.requires-dev]
-dev = [
-    { name = "httpx", specifier = ">=0.28" },
-    { name = "pytest", specifier = ">=8,<10" },
-]
+dev = [{ name = "pytest", specifier = ">=8,<10" }]
 
 [[package]]
 name = "exceptiongroup"

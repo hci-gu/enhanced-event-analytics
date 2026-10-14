@@ -8,8 +8,9 @@ import PageMenu from './PageMenu'
 import { canSubmit, pageAfterUpdate } from './navigation'
 import type { Page } from './navigation'
 import './App.css'
+import { SessionExpiredError } from './auth'
 
-function App() {
+function App({ onLogout, onSessionExpired }: { onLogout: () => void; onSessionExpired: () => void }) {
   const [text, setText] = useState('')
   const [search, setSearch] = useState('')
   const [keyboardFocus, setKeyboardFocus] = useState(false)
@@ -96,6 +97,10 @@ function App() {
         }
       }, controller.signal)
     } catch (error) {
+      if (error instanceof SessionExpiredError && !controller.signal.aborted) {
+        onSessionExpired()
+        return
+      }
       if (!controller.signal.aborted) {
         const message = error instanceof Error ? error.message : 'Anslutningen avbröts. Försök igen genom att ladda om sidan.'
         setAnalysis((current) => failAnalysis(current ?? initialAnalysis, message))
@@ -155,6 +160,10 @@ function App() {
             </label>
           </div>
           <PageMenu page={page} analysis={analysis} onNavigate={setPage} />
+          <button type="button" className="text-action logout-action" onClick={() => {
+            requestController.current?.abort()
+            onLogout()
+          }}>Logga ut</button>
         </div>
       </header>
       {page !== 'home' && analysis ? (

@@ -96,19 +96,112 @@ lock and covers device transfer, inference, pooling, and float32 normalization;
 it excludes queue time, tokenization, and conversion to a JSON vector. CUDA is
 synchronized around that work only at DEBUG. Text and vectors are never logged.
 
+## PocketBase persistence
+
+Startup creates a reusable HTTP client for local PocketBase at
+`http://127.0.0.1:8090`, checks `/api/health`, and closes the client on shutdown
+after embedding workers finish. `POCKETBASE_URL` overrides the address. Requests
+use a two-second timeout per HTTP operation and ignore proxy environment variables.
+PocketBase being offline does not prevent startup; model loading
+requirements still apply. Startup logs availability and persistence readiness.
+
+Set `POCKETBASE_TOKEN` to a PocketBase superuser API token in the backend's local
+environment or `.env`. Apply the collection migrations and restart PocketBase
+before starting the backend. The Analysis record API stays locked; the backend
+sends the token in the `Authorization` header. Without a token, writes are
+disabled and startup logs a warning. An expired/invalid token or missing collection
+also reports persistence as unavailable. Tokens are never returned by `/health`
+or included in persistence logs. See the
+[PocketBase authentication guide](https://pocketbase.io/docs/authentication/).
+
+Both analysis endpoints create one Analysis record after verifying the session and before submitting inference,
+using the request UUID, verified user ID in `created_by`, trimmed original text, and both statuses set to
+`Processing`. They update the same record after title generation and every
+completed workflow, retaining evidence in storage even though the JSON response
+omits it. Category failure saves `Failed`, structured error details, and completed
+predictions. Success saves `Complete`. Both terminal states set `finished_at` in
+UTC. Embedding completion independently updates `embedding_status` without
+changing the category status or finish time. Cancellation before an embedding
+result sets its status to `Failed`; already-running embedding work may still
+finish successfully. Vectors are returned by the API but are not stored or indexed
+by this integration. `/embed-event` alone does not create an Analysis record.
+
+Every successful create/update logs at INFO with operation, UUID, record ID and
+both statuses. Failed writes log a warning with HTTP status/error type; request
+text, predictions, token and response bodies are excluded. Persistence failures after authentication never
+abort inference or change the existing analysis API/stream responses. This is
+best-effort persistence: an unsuccessful or timed-out create is not retried, and
+that run proceeds without further writes. Later updates send the accumulated
+snapshot, so a subsequent successful update recovers missed intermediate writes.
+Failed final writes have no background retry or durable queue. A stream disconnect
+marks unfinished category analysis `Failed` (error code 499), but process crashes
+can still leave `Processing` records requiring future recovery.
+
+## Login and registration
+
+The browser uses FastAPI through the existing same-origin `/api` proxy. PocketBase
+remains on localhost; its superuser token is never sent to the frontend.
+Apply migrations and restart PocketBase so the existing/default `users` auth
+collection has required unique email, email/password login, an eight-character
+password minimum, and seven-day tokens. Existing accounts and token secrets are
+preserved. User record APIs remain locked; FastAPI mediates public registration
+with `POCKETBASE_TOKEN`. New accounts sign in immediately without email verification.
+Authentication alert emails are disabled for this initial flow; no SMTP is needed.
+
+| Endpoint | Input | Success |
+| --- | --- | --- |
+| `POST /auth/login` | `{ "email": "...", "password": "..." }` | `{ "id": "...", "email": "..." }` and session cookie |
+| `POST /auth/register` | Email/password plus `password_confirm` | HTTP 201, user and session cookie |
+| `GET /auth/session` | Session cookie | Verified user and refreshed cookie |
+| `POST /auth/logout` | No credentials required | HTTP 204 and cleared cookie; works offline |
+
+The HttpOnly `event_analytics_session` cookie has Path `/`, SameSite=Lax and a
+seven-day Max-Age. The session endpoint verifies/refreshes it with PocketBase's
+`users/auth-refresh`; every inference request independently verifies the user
+before creating records or submitting model work. The shared HTTP client uses
+per-request user authorization without changing its server superuser token.
+Responses contain only user ID/email; auth responses, including failures, use
+`Cache-Control: no-store`. Passwords/tokens are not logged or echoed in validation errors.
+
+Set `AUTH_COOKIE_SECURE=true` in production HTTPS. The default `false` supports
+local HTTP. Set `AUTH_ALLOWED_ORIGINS` to a comma-separated list of exact frontend
+origins (scheme, host and port; no paths or wildcards). Defaults allow localhost
+and 127.0.0.1 on ports 5173, 4173 and 8000. Every state-changing auth/inference POST
+must have an allowed `Origin` header, including CLI clients. Keep Cookie,
+Set-Cookie and Origin headers intact through the production reverse proxy.
+Never put `POCKETBASE_TOKEN` in Vite environment variables.
+
+Missing/invalid sessions return 401. PocketBase failure during verification returns
+503 without running inference; backend startup and `/health` still work. After
+verification, record writes remain best effort. Duplicate email returns 409;
+invalid registration returns 422. If the account was created but automatic login
+failed, the response has `detail.account_created: true` and the frontend switches
+to login without retrying registration. Logout clears only this browser's cookie;
+it does not revoke tokens on other devices. There is no password reset, OAuth,
+email verification, retrieval endpoint or per-user search/access policy yet.
+
 ## API
 
 Interactive documentation: `http://127.0.0.1:8000/docs`.
 
 `GET /health` returns HTTP 200 once startup completes, reporting the loaded
-model ID and selected device without running inference. Example:
+model ID and selected device without running inference. Each call probes PocketBase
+again, so outage/recovery is visible without restarting the backend.
+`pocketbase_available` means the health endpoint responded successfully;
+`pocketbase_persistence_ready` also requires a configured token that can read the
+Analysis collection schema. This checks configuration/access, not a test write.
+PocketBase failure leaves top-level `status: "ok"` because model health is separate;
+authenticated requests still need PocketBase to verify their session. Example:
 
 ```json
-{"status":"ok","model_id":"google/gemma-4-E2B-it","device":"cpu","model_loaded":true,"embedding_model_id":"google/embeddinggemma-2","embedding_model_loaded":true}
+{"status":"ok","model_id":"google/gemma-4-E2B-it","device":"cpu","model_loaded":true,"embedding_model_id":"google/embeddinggemma-2","embedding_model_loaded":true,"pocketbase_available":true,"pocketbase_persistence_ready":true}
 ```
 
 ```powershell
-Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8000/analyze-event' -ContentType 'application/json' -Body '{"text":"Event text to analyze"}'
+# Supply an existing user account; do not use the PocketBase superuser token.
+$loginBody = @{ email = 'user@example.com'; password = '<user-password>' } | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8000/auth/login' -Headers @{ Origin = 'http://localhost:8000' } -ContentType 'application/json' -Body $loginBody -SessionVariable analyticsSession
+Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8000/analyze-event' -Headers @{ Origin = 'http://localhost:8000' } -WebSession $analyticsSession -ContentType 'application/json' -Body '{"text":"Event text to analyze"}'
 ```
 
 HTTP 200 response:
@@ -175,7 +268,7 @@ with its result discarded. Shutdown cancels queued work and waits for running
 embedding inference before releasing runtimes.
 
 The frontend accepts these completion fields but does not store or display them.
-Text/vector persistence, search-query embeddings, and related-event retrieval are
+Vector persistence, search-query embeddings, and related-event retrieval are
 future work. Document similarity quality requires separate evaluation.
 
 ## Workflows
@@ -236,8 +329,9 @@ available for scripts and other clients, with the additional top-level `title` f
 
 Both analysis endpoints generate a fresh UUID v4 reference for each validated
 request, available in the `X-Analysis-ID` response header. The JSON endpoint's
-response body includes the title separately from category results. References are logged but are not persisted or
-queryable yet. Stream metadata includes the same UUID as `analysis_id`.
+response body includes the title separately from category results. References are
+logged and stored in PocketBase when persistence is configured; the backend has
+no analysis retrieval endpoint yet. Stream metadata includes the same UUID as `analysis_id`.
 
 `POST /analyze-event/stream` accepts the same `{ "text": "..." }` payload and
 returns `text/event-stream`. Input validation occurs before streaming (HTTP 422).
@@ -289,12 +383,16 @@ the hosting proxy as well. The frontend's `/api` prefix must be stripped.
 ## Verification
 
 ```powershell
-uv run --extra CPU python -m py_compile app.py workflows.py embeddings.py test_app.py test_workflows.py test_stream.py test_title.py test_embeddings.py smoke_articles.py
+uv run --extra CPU python -m py_compile app.py auth.py workflows.py embeddings.py persistence.py conftest.py test_app.py test_auth.py test_workflows.py test_stream.py test_title.py test_embeddings.py test_persistence.py smoke_articles.py
 uv run --extra CPU python -m pytest
 uv lock --check
 ```
 
 Tests mock both model loading and inference and do not download model weights or require a GPU.
+Auth and persistence tests use a mocked HTTP transport and never contact a real PocketBase
+database. They cover startup/health/outage recovery, authentication, incremental
+writes, partial failure, independent embedding status, cancellation, creator attribution,
+cookie handling, origin checks, registration validation and client cleanup.
 Embedding tests cover text-only loading, device/dtype selection, truncation,
 pooling/normalization, logging, concurrent analysis, failures, and cleanup.
 They include both `data/` articles to verify endpoint plumbing with mocked outputs;
@@ -303,12 +401,16 @@ those checks do not establish article classification accuracy.
 For real inference, restart the backend with Gemma and run this from `backend/`:
 
 ```powershell
-uv run --extra CPU python smoke_articles.py
+uv run --extra CPU python smoke_articles.py --email user@example.com
 ```
 
 This sends both articles to the running backend, reusing its resident model rather
-than loading a second copy. It prints matched IDs/names and checks the response
-contract for all five workflows and unchanged health metadata. Review the flooding article for
+than loading a second copy. It prompts for the user's password (or reads
+`ANALYTICS_PASSWORD` from the process environment), logs in, and retains the session
+cookie. `ANALYTICS_EMAIL` can replace `--email`; `--origin` must match the backend
+allowlist when using a deployed service. It creates attributed Analysis records.
+It prints matched IDs/names and checks the response
+contract for all five workflows and model health metadata. Review the flooding article for
 `Översvämningar` and `Vattenbrist och torka`; check that the suspicious-object article
 accounts for the later finding that the object was not dangerous, without inventing
 an explosion or terrorism. Also review the reach levels and whether service matches
