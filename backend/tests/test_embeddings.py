@@ -268,7 +268,8 @@ def test_stream_progress_does_not_wait_for_embedding(loaders, monkeypatch):
 
     async def consume():
         request = Request({"type": "http", "app": backend.app})
-        response = backend.analyze_event_stream(backend.AnalyzeEventRequest(text="Text"), request)
+        response = backend.analyze_event_stream(backend.AnalyzeEventRequest(text="Text"), request,
+                                               backend.UserSession("testuser0000001", "user@example.com", "token"))
         frames = []
         try:
             async for frame in response.body_iterator:
@@ -309,7 +310,8 @@ def test_stream_disconnect_before_iteration_cancels_embedding(loaders, monkeypat
 
     monkeypatch.setattr(backend.StreamingResponse, "__call__", disconnected)
     with TestClient(backend.app):
-        response = backend.analyze_event_stream(backend.AnalyzeEventRequest(text="Text"), request)
+        response = backend.analyze_event_stream(backend.AnalyzeEventRequest(text="Text"), request,
+                                               backend.UserSession("testuser0000001", "user@example.com", "token"))
         with pytest.raises(OSError):
             asyncio.run(response({}, None, None))
     assert pending.cancelled()

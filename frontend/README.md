@@ -1,10 +1,20 @@
 # Editorial analysis workspace
 
-React and TypeScript homepage with Swedish labels. Search accepts text but does
+React and TypeScript workspace with Swedish labels. Search accepts text but does
 not submit or display results yet. Analysera sends trimmed event text to the API
 and immediately opens a live workflow status screen.
 
-On each homepage load, a single `GET /api/health` request checks the backend's
+The entry screen first calls `GET /api/auth/session`. A verified session opens Hem;
+401 opens the login form, and connection failures show a retry state without
+mounting the workspace. Public registration signs in immediately; the Swedish
+forms match the Editorial palette, typography and native keyboard controls.
+Passwords/tokens are not stored in localStorage. Session cookies are managed by
+the backend and remain HttpOnly. The authenticated toolbar includes Logga ut;
+logout or a 401 from analysis unmounts the workspace, aborting the active stream
+and clearing composer/search/results. Refresh restores login but not analysis state.
+Password reset, email verification and OAuth remain future work.
+
+After authentication, a single `GET /api/health` request checks the backend's
 `/health` endpoint. Only an HTTP success with JSON `status: "ok"` passes.
 Other statuses, invalid responses, network errors, and a 10-second timeout show
 a dismissible error dialog. Close it with Stäng or Escape; reloading checks again.
@@ -26,16 +36,23 @@ It is read by Vite from `.env` or the process environment (which takes precedenc
 and configures the proxy. Vite also exposes `VITE_` settings to browser code;
 use a public backend URL without credentials. Restart Vite after changing it.
 Start the backend separately using the instructions in `../backend/README.md`.
+Configure the backend's loopback `POCKETBASE_URL`, `AUTH_ALLOWED_ORIGINS` and
+`AUTH_COOKIE_SECURE` as described there. All browser auth calls use `/api/auth/*`;
+the same proxy forwards Cookie, Set-Cookie and Origin. Production needs one
+same-origin HTTPS reverse proxy with those headers preserved. PocketBase user
+session tokens must never be placed in `VITE_` settings. No superuser token is
+needed; Python uses verified user sessions and PocketBase is private. Do not
+forward any frontend/proxy path directly to PocketBase.
 
 The browser posts `{ "text": "..." }` to `/api/analyze-event/stream`. Both `pnpm dev`
 and `pnpm preview` proxy `/api/*` to `VITE_API_URL`, stripping the `/api` prefix.
 
 ## Colors and layout
 
-The home, status and summary screens implement the approved Superdesign Editorial
+The login, registration, home, status and summary screens implement the approved Superdesign Editorial
 designs: ivory surfaces, terracotta accents, a subtle paper grid, serif headings,
 thin rules and offset card borders. The header and Sidor dropdown remain available
-on every screen. Prototype example data and badges are not included in the app;
+on authenticated screens; login has only the brand header. Prototype example data and badges are not included in the app;
 all workflow names, states, categories and evidence come from the analysis stream.
 The application targets PC browsers. Narrow-window rules keep controls usable
 when desktop windows are resized; phone layouts are not a product requirement.
@@ -50,6 +67,7 @@ textbox, search, and button colors (including hover and disabled states).
 Some widget colors reference the shared variables; replace those references with
 color values if you want to customize widgets independently.
 Layout styles live in `src/App.css`; global styles live in `src/index.css`.
+Authentication styles live in `src/AuthScreen.css` and use the same shared tokens.
 The event textbox has a generous minimum height and grows with newlines or wrapped
 text up to 560px on desktop (400px on mobile). Longer text scrolls internally.
 The home screen itself scrolls on short viewports so the submit action stays
@@ -146,6 +164,7 @@ smoke check after `pnpm build`:
 
 ```powershell
 node tests/browser-smoke.mjs '<path-to-playwright-package>'
+node tests/auth-browser-smoke.mjs '<path-to-playwright-package>'
 ```
 
 It serves the production build on a temporary local port with a mocked streaming
@@ -154,6 +173,10 @@ results, completion navigation, replacement submissions, stable title placement,
 tags, quotes, evidence selection and scrolling. Screenshots are written to a
 temporary directory reported by the command. It does not contact the backend or
 load a model.
+The authentication smoke check covers login errors, registration and confirmation,
+session restoration, account-created/login-failed handling, retry after outages,
+session expiry, logout during an active stream, cleared workspace state, and
+keyboard focus at desktop and narrow widths. It uses mocked auth/analysis APIs.
 
 API tests use Node's built-in test runner and TypeScript support (Node 22.18+).
 They verify request payloads, health checks, fragmented streams, workflow state,

@@ -15,7 +15,11 @@ EMBEDDING = {
 
 
 @pytest.fixture
-def loaders(monkeypatch):
+def loaders(monkeypatch, pocketbase, no_date_inference):
+    # Existing inference tests focus on analysis contracts; auth has its own suite.
+    monkeypatch.setitem(backend.app.dependency_overrides, backend.require_user,
+                        lambda: backend.UserSession("testuser0000001", "user@example.com", "user-token"))
+    monkeypatch.setitem(backend.app.dependency_overrides, backend.require_origin, lambda: None)
     monkeypatch.setattr(backend, "load_embedding_runtime", Mock(return_value=Mock(model_id="google/embeddinggemma-2")))
     monkeypatch.setattr(backend, "embed_document", Mock(return_value=EMBEDDING))
     monkeypatch.setattr(backend, "load_dotenv", Mock())
@@ -23,7 +27,7 @@ def loaders(monkeypatch):
     monkeypatch.delenv("RETRY_LIMIT", raising=False)
     for name in (
         "uvicorn", "uvicorn.error", "uvicorn.access",
-        "uvicorn.error.app", "uvicorn.error.workflows", "uvicorn.error.embeddings",
+        "uvicorn.error.app", "uvicorn.error.workflows", "uvicorn.error.embeddings", "uvicorn.error.persistence",
     ):
         target = logging.getLogger(name)
         monkeypatch.setattr(target, "level", target.level)
@@ -133,17 +137,20 @@ def test_requests_share_runtime_and_cleanup(loaders, monkeypatch):
             "model_id": "test/model",
             "device": "cpu",
             "model_loaded": True,
+            "serving_engine": "transformers",
             "embedding_model_id": "google/embeddinggemma-2",
             "embedding_model_loaded": True,
+            "pocketbase_available": True,
         }
         runner.assert_not_called()
         for _ in range(2):
             response = client.post("/analyze-event", json={"text": "  Swedish event  "})
             assert response.status_code == 200
             assert response.json() == {"status": "ok", "title": "Testhändelse", "results": empty_results,
-                                       "embedding": EMBEDDING, "embedding_error": None}
+                                       "embedding": EMBEDDING, "embedding_error": None, "dates": None, "dates_error": None}
         assert runner.call_count == 2
-        runner.assert_called_with("Swedish event", runtime, backend.app.state.workflow_categories)
+        assert runner.call_args.args == ("Swedish event", runtime, backend.app.state.workflow_categories)
+        assert callable(runner.call_args.kwargs["on_event"])
         loaders[0].assert_called_once_with("test/model")
         loaders[1].assert_called_once_with(
             "test/model", config=backend.AutoConfig.from_pretrained.return_value
@@ -172,7 +179,7 @@ def test_article_endpoint_contract(loaders, monkeypatch, article):
         '[{"ID":"varaktighet"}]', '[{"ID":"samhällets_funktionalitet"}]',
     ] * 2)
     monkeypatch.setattr(workflows, "generate_text", generator)
-    text = (Path(__file__).parent.parent / "data" / article).read_text(encoding="utf-8")
+    text = (Path(__file__).resolve().parents[2] / "data" / "events" / article).read_text(encoding="utf-8")
     with TestClient(backend.app) as client:
         runtime = backend.app.state.runtime
         for _ in range(2):
@@ -180,6 +187,7 @@ def test_article_endpoint_contract(loaders, monkeypatch, article):
             assert response.status_code == 200
             assert response.json() == {
                 "status": "ok",
+                "dates": None, "dates_error": None,
                 "title": "Testhändelse",
                 "embedding": EMBEDDING,
                 "embedding_error": None,
@@ -220,7 +228,7 @@ def test_bad_categories_prevent_model_loading(loaders, monkeypatch):
 
 
 def test_gemma_generation_loader(loaders, monkeypatch):
-    monkeypatch.setenv("MODEL_ID", "google/gemma-4-E2B-it")
+    monkeypatch.setenv("MODEL_ID", "google/gemma-4-26B-A4B-it")
     config = backend.AutoConfig.from_pretrained.return_value
     config.model_type = "gemma4"
     processor = Mock()
@@ -233,9 +241,9 @@ def test_gemma_generation_loader(loaders, monkeypatch):
         assert runtime.processor is processor
         assert runtime.tokenizer is processor.tokenizer
         assert runtime.model is model_loader.return_value
-        processor_loader.assert_called_once_with("google/gemma-4-E2B-it")
+        processor_loader.assert_called_once_with("google/gemma-4-26B-A4B-it")
         model_loader.assert_called_once_with(
-            "google/gemma-4-E2B-it", config=config, dtype="auto"
+            "google/gemma-4-26B-A4B-it", config=config, dtype="auto"
         )
         runtime.model.to.assert_called_once_with("cpu")
         runtime.model.eval.assert_called_once_with()

@@ -25,7 +25,7 @@ def parse_events(response):
     ]
 
 
-def test_iterator_delivers_progress_before_running_next_workflow(monkeypatch):
+def test_iterator_delivers_progress_before_running_next_workflow(monkeypatch, no_date_inference):
     first = Mock(return_value=[])
     second = Mock(return_value=[{"ID": "a", "name": "Match"}])
     monkeypatch.setattr(workflows, "WORKFLOWS", {
@@ -47,7 +47,7 @@ def test_iterator_delivers_progress_before_running_next_workflow(monkeypatch):
     assert next(iterator) == ("workflow_started", {"id": "second"})
     second.assert_not_called()
     assert next(iterator)[0] == "workflow_completed"
-    assert next(iterator) == ("analysis_completed", {})
+    assert next(iterator) == ("analysis_completed", {"dates": None, "dates_error": None})
     with pytest.raises(StopIteration):
         next(iterator)
 
@@ -74,8 +74,10 @@ def test_stream_endpoint_contract_and_existing_json_endpoint(loaders, monkeypatc
     assert [name for name, _ in events] == ["analysis_started", "title_completed"] + [
         "workflow_started", "workflow_completed",
     ] * 5 + ["analysis_completed"]
-    assert events[-1] == ("analysis_completed", {"embedding": EMBEDDING, "embedding_error": None})
+    assert events[-1] == ("analysis_completed", {"embedding": EMBEDDING, "embedding_error": None,
+                                               "dates": None, "dates_error": None})
     assert ordinary.json() == {"status": "ok", "title": "Testhändelse", "embedding": EMBEDDING,
+                              "dates": None, "dates_error": None,
                               "embedding_error": None, "results": {
         "risks": [], "reach": [], "service": [], "properties": [], "protection": [],
     }}

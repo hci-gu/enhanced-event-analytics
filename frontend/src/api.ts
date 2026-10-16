@@ -1,5 +1,6 @@
 import { readAnalysisStream } from './analysis.ts'
 import type { AnalysisState } from './analysis.ts'
+import { SessionExpiredError } from './auth.ts'
 
 export async function checkHealth(): Promise<void> {
   let response: Response
@@ -38,6 +39,7 @@ export async function streamAnalysis(
   try {
     response = await fetch('/api/analyze-event/stream', {
       method: 'POST',
+      credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
       body: JSON.stringify({ text: trimmedText }),
       signal,
@@ -45,6 +47,7 @@ export async function streamAnalysis(
   } catch {
     throw new Error('Det gick inte att nå servern. Kontrollera anslutningen och försök igen.')
   }
+  if (response.status === 401) throw new SessionExpiredError()
   if (!response.ok) throw new Error(`Förfrågan misslyckades (HTTP ${response.status}). Försök igen.`)
   if (!response.body || !response.headers.get('content-type')?.includes('text/event-stream')) {
     throw new Error('Servern skickade ett ogiltigt analysflöde.')

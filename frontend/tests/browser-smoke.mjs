@@ -22,6 +22,11 @@ let requests = 0
 const send = (type, data) => response.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`)
 const server = createServer(async (request, res) => {
   const pathname = new URL(request.url, 'http://localhost').pathname
+  if (pathname === '/api/auth/session') {
+    res.setHeader('Content-Type', 'application/json')
+    res.end('{"id":"testuser0000001","email":"user@example.com"}')
+    return
+  }
   if (pathname === '/api/health') {
     res.setHeader('Content-Type', 'application/json')
     res.end('{"status":"ok"}')
@@ -54,6 +59,7 @@ try {
     const errors = []
     page.on('pageerror', (error) => errors.push(error.message))
     await page.goto(`http://127.0.0.1:${server.address().port}`)
+    await page.locator('#homepage-title').waitFor()
     await page.screenshot({ path: join(screenshots, `home-${viewport.width}.png`) })
     const menu = page.getByRole('button', { name: 'Sidmeny' })
     await menu.click()
