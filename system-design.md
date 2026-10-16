@@ -7,7 +7,8 @@ An authentication gate restores the backend-managed HttpOnly session before
 mounting the workspace. Logged-out users see an Editorial email/password form;
 public registration adds password confirmation and signs in immediately. Session
 outages show retry feedback. Logout/session expiry clear workspace state and abort
-active frontend requests. Search and per-user retrieval remain future work.
+active frontend requests. A per-user history sidebar reopens completed analyses;
+search remains future work.
 TypeScript React homepage with an event textbox, analysis submission, and a
 search input (search results are not implemented). The browser calls
 `POST /api/analyze-event/stream`; the development/preview proxy forwards this to the
@@ -19,8 +20,8 @@ navigation. Crimson Pro and Switzer load from font services with local fallbacks
 The top-right menu switches between Hem, Status and Sammanfattning. Status is
 available after submission; Sammanfattning requires a successful analysis.
 Navigation preserves the current analysis and any active request. Returning Home
-allows a replacement submission after processing finishes; only one analysis is
-kept in memory. Completion opens the summary automatically only when Status is
+allows a replacement submission after processing finishes. The active analysis and
+one historical view are kept independently in memory. Completion opens the summary automatically only when Status is
 selected, and completed Status remains accessible through the menu.
 
 Submission immediately opens a status screen with registry-ordered expandable
@@ -40,7 +41,16 @@ available while collapsed. Disabled workflows leave other overlapping colors int
 Activating a result quote scrolls its first occurrence to roughly 25% down the text
 viewport, within scroll limits, even when its workflow highlights are off.
 Hover/focus connects passages and workflows in both directions; click/tap pins selection, Escape clears
-it. Text/results scroll independently and stack on mobile. State is in memory only.
+it. Text/results scroll independently and stack on mobile. Drafts and the selected
+view are in memory; completed persisted analyses remain accessible after refresh.
+The animated, collapsible timeline sidebar initially retrieves five completed
+analyses with `GET /analyses`; `Visa fler` appends 20 using a stable cursor over
+`created DESC, id DESC`. Days and times display in the browser's local timezone.
+`GET /analyses/{analysis_id}` restores the immutable source, evidence, category
+results, date output and finish time without inference. Background completion
+refreshes the list while preserving the open historical view and current draft.
+Narrow windows use an overlay; hidden history is inert and reduced motion disables
+the transition. Storage failures are retryable and session expiry clears history.
 The title text is initially absent, with its heading area reserved to keep other
 widgets in place. A background title step replaces the former UUID
 heading once finished; both analysis and summary screens use the generated title.
@@ -218,7 +228,7 @@ Writes are best effort, with INFO success logs and warnings on failure; failed
 creates are not retried and failed final updates have no durable retry queue.
 
 The evidence-linked summary and LLM title generation milestones are implemented.
-A sidebar to switch event analyses remains future work. A versioned PocketBase Analysis collection exists,
+A sidebar to switch between completed event analyses is implemented. A versioned PocketBase Analysis collection exists,
 and backend record writes are implemented;
 the diagram below describes the intended architecture.
 
@@ -240,7 +250,9 @@ Collections
   optional `dates` and `dates_error`: final extraction output and nonfatal error JSON,
   automatic `created`/`updated` timestamps, optional `finished_at` for the category
   analysis terminal time). Owner-attributed creation/update is allowed; creator,
-  UUID and source text cannot be changed through the API. Reads/deletes stay locked.
+  UUID and source text cannot be changed through the API. Owner-scoped reads of
+  Complete records are enabled; deletion stays locked. Legacy unattributed records
+  remain unreadable. Python exposes only authenticated list/UUID-detail reads.
   Backend persistence marks Failed if any category workflow fails and retains
   completed predictions; embedding failures are tracked separately. See
   [PocketBase schema and lifecycle](pocketbase/README.md).

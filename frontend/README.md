@@ -91,8 +91,9 @@ only after terminal success. Failures retain partial results and a static progre
 bar; the active workflow fails and remaining workflows are marked “Ej körd.”
 Stream interruption or invalid messages display an error without rerunning inference.
 Successful terminal confirmation opens the evidence-linked summary only when
-Status is selected; failures stay on Status. State is in memory only: refreshing
-returns to the homepage. Mobile rows wrap their tags below the workflow label.
+Status is selected; failures stay on Status. Refreshing returns to the homepage;
+completed, successfully persisted analyses can be reopened from history.
+Mobile rows wrap their tags below the workflow label.
 New status/result colors are customizable in `src/colors.css`.
 The final `Datum` row remains queued during categorization and shows Pågår while
 date extraction runs. It counts toward workflow progress and is automatically
@@ -122,9 +123,10 @@ exact supporting quotes; missing dates are omitted and supported open ends show
 converted to another timezone. A separate rough duration hint is shown when present.
 The analysis reference records the browser's reception of successful completion,
 is retained in memory across navigation, and displays in the browser's local timezone.
+Reopened analyses use their persisted finish time (or creation time for older records).
 Its detail text is `Analystiden registreras av systemet [datum] kl. [tid].`
 Missing, malformed, empty or failed date output hides the widget without failing
-the category analysis. Refresh still clears the entire in-memory analysis.
+the category analysis. Refresh clears the current view and draft; history remains available.
 Verified supporting quotes are highlighted at every exact occurrence. Overlapping
 passages retain all category/workflow links and display workflow colors in bands.
 Each workflow header has an unlabeled highlight slider, on by default and visible even
@@ -166,11 +168,28 @@ Status can be revisited without redirecting automatically.
 The dropdown closes after selection, outside click or Escape. Tab, arrow keys,
 Home and End support keyboard navigation, skipping disabled entries.
 
-### Future frontend milestones
+## Analysis history
 
-Title generation, page navigation and the evidence-linked summary are implemented.
-Saved analysis history, navigation between multiple analyses, and search results
-remain future work.
+The left sidebar loads the signed-in user's five most recent completed analyses.
+It groups creation times by local calendar day and shows a time column, title and
+Klar status. `Visa fler` appends up to 20 older results inside the independently
+scrollable panel. Stable cursor pagination avoids duplicates when new analyses arrive.
+Failed, processing, unattributed and other users' analyses are excluded.
+
+The panel toggle sits at its top right while open and at the main area's top left
+while closed. Expansion/collapse animates over 300 ms; reduced motion is immediate,
+and the closed panel is inert. Narrow windows use an overlay, initially closed;
+selecting a result closes the overlay. Escape from within the panel also closes it.
+
+Selecting history fetches the saved source, category predictions, exact evidence,
+date output and finish time through `GET /api/analyses/{analysis_id}`. No inference
+is performed. The current draft and active stream remain intact; returning Home
+restores them, and its Sidor menu exposes the active analysis again. Background
+completion refreshes the history but does not replace an open historical result.
+List/detail requests are abortable, time out after ten seconds and use no-store.
+Loading failures preserve the current result; session expiry clears the workspace.
+History is limited to records successfully saved by the backend's best-effort writer.
+Search results remain unimplemented.
 
 ## Verification and production
 
@@ -187,6 +206,7 @@ smoke check after `pnpm build`:
 ```powershell
 node tests/browser-smoke.mjs '<path-to-playwright-package>'
 node tests/auth-browser-smoke.mjs '<path-to-playwright-package>'
+node tests/history-browser-smoke.mjs '<path-to-playwright-package>'
 ```
 
 It serves the production build on a temporary local port with a mocked streaming
@@ -199,6 +219,9 @@ The authentication smoke check covers login errors, registration and confirmatio
 session restoration, account-created/login-failed handling, retry after outages,
 session expiry, logout during an active stream, cleared workspace state, and
 keyboard focus at desktop and narrow widths. It uses mocked auth/analysis APIs.
+The history smoke check covers five/20 pagination, restored evidence/dates, panel
+animation/focus/scroll, draft preservation, concurrent inference navigation,
+retry after outages and session expiry at desktop and narrow widths. All APIs are mocked.
 
 API tests use Node's built-in test runner and TypeScript support (Node 22.18+).
 They verify request payloads, health checks, fragmented streams, workflow state,

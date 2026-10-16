@@ -56,7 +56,11 @@ the record API; they do not log collection migrations or failed record writes.
 
 The create rule requires an authenticated users identity matching `created_by`.
 The update rule requires ownership and disallows changing `created_by`,
-`analysis_id`, or `original_text`. Listing, viewing and deletion stay locked.
+`analysis_id`, or `original_text`. The history migration enables listing/viewing
+only the signed-in user's own `Complete` records; processing, failed and legacy
+unattributed records stay unreadable. Deletion stays locked. An index on
+`created_by, status, created, id` supports history pagination. Restart PocketBase
+to apply `1792152000_enable_history.go` before using the sidebar.
 FastAPI writes through the HTTP record API using the refreshed user session token;
 there is no server superuser credential. The default `POCKETBASE_URL` is
 `http://127.0.0.1:8090`. See
@@ -84,7 +88,8 @@ Authentication is required before inference; PocketBase verification failure
 returns 503. After authentication, persistence is best effort and write failures
 do not stop inference. Creator IDs come from verified sessions, never client input.
 Legacy creator fields remain empty; deleting a user does not cascade-delete analyses.
-No user-facing analysis retrieval or search endpoint is added yet. The owner-write
+FastAPI exposes authenticated `/analyses` list and UUID detail endpoints; search
+remains unimplemented. The owner-write
 rules protect attribution but do not distinguish Python from a local process
 holding the same user token; database network isolation remains essential.
 Stream disconnects mark unfinished analysis Failed, but there is no recovery queue

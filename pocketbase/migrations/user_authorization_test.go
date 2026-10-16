@@ -86,6 +86,7 @@ func TestUserAuthorizedRecordAPI(t *testing.T) {
 	call(http.MethodPost, path, secondToken, data, 400)
 	created := call(http.MethodPost, path, firstToken, data, 200)
 	itemPath := path + "/" + created["id"].(string)
+	call(http.MethodGet, itemPath, firstToken, nil, 404)
 	call(http.MethodPatch, itemPath, firstToken, map[string]any{
 		"title": "Title", "predictions": map[string]any{"risks": []any{}},
 		"status": "Complete", "embedding_status": "Complete", "created_by": firstID,
@@ -95,8 +96,19 @@ func TestUserAuthorizedRecordAPI(t *testing.T) {
 	call(http.MethodPatch, itemPath, firstToken, map[string]any{"created_by": secondID}, 404)
 	call(http.MethodPatch, itemPath, firstToken, map[string]any{"original_text": "Replacement"}, 404)
 	call(http.MethodPatch, itemPath, firstToken, map[string]any{"analysis_id": "11234567-89ab-4cde-8fab-0123456789ab"}, 404)
-	call(http.MethodGet, itemPath, firstToken, nil, 403)
-	call(http.MethodGet, path, firstToken, nil, 403)
+	call(http.MethodGet, itemPath, firstToken, nil, 200)
+	call(http.MethodGet, itemPath, secondToken, nil, 404)
+	call(http.MethodGet, itemPath, "", nil, 404)
+	listed := call(http.MethodGet, path, firstToken, nil, 200)
+	if len(listed["items"].([]any)) != 1 {
+		t.Fatal("owner should see their completed analysis")
+	}
+	for _, token := range []string{secondToken, ""} {
+		listed := call(http.MethodGet, path, token, nil, 200)
+		if len(listed["items"].([]any)) != 0 {
+			t.Fatal("history must not expose another user's analyses")
+		}
+	}
 	call(http.MethodDelete, itemPath, firstToken, nil, 403)
 	call(http.MethodGet, "/api/collections/users/records", firstToken, nil, 403)
 
@@ -114,4 +126,13 @@ func TestUserAuthorizedRecordAPI(t *testing.T) {
 		t.Fatal(err)
 	}
 	call(http.MethodPatch, path+"/"+legacy.Id, firstToken, map[string]any{"created_by": firstID}, 404)
+	call(http.MethodGet, path+"/"+legacy.Id, firstToken, nil, 404)
+	for _, status := range []string{"Processing", "Failed"} {
+		call(http.MethodPatch, itemPath, firstToken, map[string]any{"status": status}, 200)
+		call(http.MethodGet, itemPath, firstToken, nil, 404)
+		listed := call(http.MethodGet, path, firstToken, nil, 200)
+		if len(listed["items"].([]any)) != 0 {
+			t.Fatal("only complete, attributed analyses belong in history")
+		}
+	}
 }

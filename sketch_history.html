@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Analyshistorik</title>
+  <style>
+    :root { --paper:#f4efe6; --card:#fffcf5; --ink:#342e29; --muted:#6e6a61; --rule:#ddd7ca; --accent:#a3432c; --tint:#f2e4da; --green:#526a56; --sans:system-ui,-apple-system,'Segoe UI',sans-serif; --serif:Georgia,'Times New Roman',serif; }
+    * { box-sizing:border-box; }
+    [hidden] { display:none !important; }
+    html { scroll-behavior:smooth; scroll-padding-top:90px; }
+    body { margin:0; background:var(--paper); color:var(--ink); font:14px/1.5 var(--sans); }
+    button,textarea { font:inherit; color:inherit; }
+    button { cursor:pointer; }
+    :focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+    h1,h2,h3,p { margin:0; }
+    h1,h2,h3 { font-family:var(--serif); }
+    a { color:inherit; text-underline-offset:4px; }
+    .sketch-toolbar,.gallery,footer { max-width:1440px; margin:auto; padding-inline:40px; }
+    .sketch-toolbar { display:flex; align-items:center; justify-content:space-between; gap:16px; padding-block:24px 18px; }
+    .sketch-toolbar h1 { font-size:24px; font-weight:400; }
+    .width-toggle { border:1px solid var(--rule); background:var(--card); padding:8px 12px; font-size:11px; flex:none; }
+    .width-toggle[aria-pressed=true] { color:var(--accent); border-color:var(--accent); }
+    .preview { container-type:inline-size; border:1px solid var(--rule); box-shadow:4px 4px 0 var(--rule); background:var(--card); margin-inline:auto; }
+    body.narrow .preview { max-width:860px; }
+    .app-header { min-height:78px; display:flex; align-items:center; justify-content:space-between; gap:20px; padding:18px 26px; border-bottom:1px solid var(--rule); }
+    .brand { border:0; background:none; padding:0; text-align:left; }
+    .brand small { display:block; color:var(--accent); text-transform:uppercase; letter-spacing:.12em; font-size:8px; margin-bottom:4px; }
+    .brand strong { font-family:var(--serif); font-size:20px; font-weight:400; }
+    .header-tools { display:flex; align-items:center; gap:22px; }
+    .search-placeholder { width:180px; border-bottom:1px solid var(--rule); padding:6px 0; font-size:12px; color:var(--muted); }
+    .search-placeholder span { margin-right:8px; font-size:18px; }
+    .header-page { font-size:11px; color:var(--muted); }
+    .workspace { --sidebar-width:310px; position:relative; display:grid; grid-template-columns:minmax(0,var(--sidebar-width)) minmax(0,1fr); height:650px; transition:grid-template-columns 300ms cubic-bezier(.22,1,.36,1); }
+    .preview.collapsed .workspace { grid-template-columns:minmax(0,0px) minmax(0,1fr); }
+    .sidebar-slot { min-width:0; min-height:0; overflow:hidden; visibility:visible; transition:visibility 0s; }
+    .preview.collapsed .sidebar-slot { visibility:hidden; transition:visibility 0s 300ms; }
+    .sidebar { display:flex; flex-direction:column; width:var(--sidebar-width); height:100%; min-height:0; border-right:1px solid var(--rule); background:#f8f4ec; opacity:1; transform:translateX(0); transition:opacity 180ms ease,transform 300ms cubic-bezier(.22,1,.36,1); }
+    .preview.collapsed .sidebar { opacity:0; transform:translateX(-20px); }
+    .sidebar-head { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:18px 16px 14px 22px; border-bottom:1px solid var(--rule); flex:none; }
+    .side-title { font:600 10px var(--sans); letter-spacing:.12em; text-transform:uppercase; }
+    .sidebar-toggle { display:inline-flex; align-items:center; justify-content:center; gap:8px; flex:none; min-width:34px; height:34px; padding:7px; border:1px solid var(--rule); background:var(--card); color:var(--muted); }
+    .sidebar-toggle:hover { color:var(--accent); border-color:var(--accent); }
+    .sidebar-toggle svg { display:block; width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; }
+    .sidebar-toggle .toggle-label { display:none; font-size:11px; }
+    .sidebar-toggle[aria-expanded=false] { color:var(--accent); padding-inline:10px; }
+    .sidebar-toggle[aria-expanded=false] .toggle-label { display:inline; }
+    .sidebar-toggle[aria-expanded=false] .direction { transform:rotate(180deg); transform-origin:center; }
+    .history-scroll { flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; scrollbar-color:#b8ac99 transparent; padding:4px 16px 20px; }
+    .day-group { padding-top:12px; }
+    .group-label { position:sticky; top:-4px; z-index:1; padding:7px 0 9px 22px; background:#f8f4ec; font:500 9px var(--sans); text-transform:uppercase; letter-spacing:.13em; color:var(--muted); margin:0; }
+    .event-list { list-style:none; padding:0; margin:0 0 0 9px; border-left:1px solid #c9c0b1; }
+    .event { display:grid; grid-template-columns:34px minmax(0,1fr); gap:10px; position:relative; width:calc(100% - 10px); margin-left:10px; padding:10px; text-align:left; border:1px solid transparent; background:transparent; }
+    .event::before { content:''; position:absolute; top:18px; left:-15px; width:7px; height:7px; border-radius:50%; background:#a99e8b; box-shadow:0 0 0 4px #f8f4ec; }
+    .event:hover { background:#eee8dc; }
+    .event[aria-current=true] { background:var(--tint); border-color:#d7b9a8; }
+    .event[aria-current=true]::before { background:var(--accent); }
+    .event-title { display:block; font-size:12px; line-height:1.5; font-weight:550; overflow-wrap:anywhere; }
+    .event-meta { display:flex; flex-wrap:wrap; gap:6px; font-size:10px; color:var(--muted); margin-top:6px; }
+    .done { color:var(--green); }
+    .event-time { display:block; color:var(--muted); font-size:10px; font-variant-numeric:tabular-nums; padding-top:2px; }
+    .more-row { margin:18px 0 0 22px; padding-top:15px; border-top:1px solid var(--rule); }
+    .load-more { display:inline-flex; align-items:center; gap:8px; padding:5px 0; border:0; background:none; color:var(--accent); text-decoration:underline; text-underline-offset:4px; font-size:12px; }
+    .visually-hidden { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; border:0; }
+    .stage { min-width:0; min-height:0; overflow-y:auto; padding:18px 24px 36px; background-color:var(--paper); background-image:linear-gradient(#ddd7ca55 1px,transparent 1px),linear-gradient(90deg,#ddd7ca55 1px,transparent 1px); background-size:40px 40px; }
+    .stage-tools { display:flex; align-items:flex-start; height:40px; }
+    .stage-inner { max-width:740px; margin:16px auto 0; padding-inline:16px; }
+    .screen-label { margin-bottom:10px; color:var(--accent); letter-spacing:.15em; text-transform:uppercase; font-size:9px; font-weight:600; }
+    .stage h3 { font-size:clamp(29px,3.5cqw,46px); line-height:1.15; letter-spacing:-.025em; margin-bottom:32px; }
+    .composer { padding:4px; border:1px solid var(--rule); background:var(--card); box-shadow:4px 4px 0 var(--rule); }
+    .composer-inner { padding:20px; border:1px solid var(--rule); }
+    .field-label { display:block; color:var(--muted); font-size:9px; letter-spacing:.15em; text-transform:uppercase; margin-bottom:15px; }
+    textarea { display:block; width:100%; min-height:195px; resize:vertical; border:0; background:transparent; font-size:15px; line-height:1.7; }
+    textarea::placeholder { color:var(--muted); }
+    .actions { display:flex; justify-content:flex-end; margin-top:22px; }
+    .analyze { border:1px solid var(--accent); background:var(--accent); color:var(--card); padding:13px 30px; text-transform:uppercase; letter-spacing:.12em; font-size:10px; }
+    .demo-hint { margin-top:18px; font-size:10px; color:var(--muted); }
+    .summary-top { display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px; margin-bottom:18px; color:var(--muted); font-size:10px; }
+    .summary-badge { color:var(--green); }
+    .summary-box { padding:22px; background:var(--card); border:1px solid var(--rule); box-shadow:4px 4px 0 var(--rule); }
+    .summary-box h4 { font:22px var(--serif); margin:0 0 18px; }
+    .result-row { display:flex; justify-content:space-between; align-items:baseline; gap:16px; border-top:1px solid var(--rule); padding:13px 0; }
+    .result-row span { font-size:11px; color:var(--muted); }
+    .result-row strong { font-size:12px; font-weight:550; text-align:right; }
+    .source { margin-top:20px; }
+    .source summary { font-size:11px; cursor:pointer; color:var(--muted); }
+    .source p { font:15px/1.8 var(--serif); margin-top:12px; }
+    .back { background:transparent; border:0; border-bottom:1px solid currentColor; padding:0 0 3px; color:var(--accent); font-size:11px; margin-top:24px; }
+    footer { padding-block:18px 30px; color:var(--muted); font-size:11px; }
+    @container (max-width:900px) {
+      .workspace { --sidebar-width:270px; }
+      .stage { padding-inline:16px; }
+      .stage-inner { padding-inline:4px; }
+      .search-placeholder { width:145px; }
+      .stage h3 { font-size:32px; }
+    }
+    @container (max-width:620px) {
+      .app-header { padding:16px; }
+      .brand strong { font-size:17px; }
+      .search-placeholder { display:none; }
+      .workspace,.preview.collapsed .workspace { grid-template-columns:minmax(0,0px) minmax(0,1fr); }
+      .sidebar-slot { position:absolute; z-index:3; top:0; bottom:0; left:0; width:min(var(--sidebar-width),88%); box-shadow:10px 0 24px #342e2926; transform:translateX(0); transition:transform 300ms cubic-bezier(.22,1,.36,1),visibility 0s; }
+      .preview.collapsed .sidebar-slot { transform:translateX(-100%); box-shadow:none; transition:transform 300ms cubic-bezier(.22,1,.36,1),visibility 0s 300ms; }
+      .sidebar { width:100%; }
+      .preview.collapsed .sidebar { transform:none; }
+      .stage { padding:16px 18px 30px; }
+      .stage-inner { padding:0; }
+      .result-row { display:block; }
+      .result-row strong { display:block; text-align:left; margin-top:4px; }
+    }
+    @media (max-width:700px) {
+      .sketch-toolbar,.gallery,footer { padding-inline:16px; }
+    }
+    @media (prefers-reduced-motion:reduce) { html { scroll-behavior:auto; } *,*::before,*::after { transition:none !important; } }
+  </style>
+</head>
+<body>
+  <header class="sketch-toolbar">
+    <h1>Analyshistorik</h1>
+    <button class="width-toggle" type="button" aria-pressed="false">Visa smal vy</button>
+  </header>
+  <main class="gallery" id="gallery"></main>
+  <footer>Skiss · Fiktiva data</footer>
+  <script>
+    const initialEvents = [
+      { title:'Brand i industrilokal i Västerås', time:'10:42', group:'I dag', risk:'Brand och rökutveckling', reach:'Lokalt · Västerås', service:'Transport och logistik', source:'En brand har brutit ut i en industrilokal i Västerås. Räddningstjänsten är på plats och boende i närheten uppmanas att hålla fönster stängda.' },
+      { title:'Störningar i tågtrafiken söder om Stockholm', time:'09:18', group:'I dag', risk:'Störning i infrastruktur', reach:'Regionalt · Stockholms län', service:'Transport', source:'Ett signalfel söder om Stockholm orsakar inställda avgångar och förseningar. Resenärer hänvisas till ersättningstrafik under förmiddagen.' },
+      { title:'Översvämning efter kraftigt regn i Gävle', time:'16:35', group:'I går', risk:'Översvämning', reach:'Lokalt · Gävle', service:'Vatten och avlopp', source:'Kraftigt regn har orsakat översvämningar i flera delar av Gävle. Vatten har trängt in i källare och ett antal vägar är oframkomliga.' },
+      { title:'Strömavbrott påverkar hushåll på Gotland', time:'11:06', group:'I går', risk:'Avbrott i energiförsörjning', reach:'Regionalt · Gotland', service:'Energiförsörjning', source:'Ett strömavbrott påverkar hushåll på Gotland. Felsökning pågår och elnätsägaren har ännu ingen prognos för när strömmen kan vara tillbaka.' },
+      { title:'Misstänkt vattenförorening i Örebro', time:'14:22', group:'14 oktober', risk:'Förorenat dricksvatten', reach:'Lokalt · Örebro', service:'Dricksvattenförsörjning', source:'Kommunen uppmanar boende i ett område i Örebro att koka dricksvattnet efter en misstänkt förorening. Nya vattenprover har tagits.' }
+    ]
+    const olderExamples = [
+      ['Vägar avstängda efter jordskred i','Uddevalla','Jordskred','Transport'],
+      ['Fjärrvärmeavbrott i centrala','Uppsala','Avbrott i värmeförsörjning','Energiförsörjning'],
+      ['Kraftig rökutveckling vid lagerbrand i','Norrköping','Brand','Räddningstjänst'],
+      ['Störningar i mobilnätet i','Sundsvall','Avbrott i kommunikation','Elektronisk kommunikation'],
+      ['Höga vattenflöden i','Karlstad','Översvämning','Vatten och avlopp'],
+      ['Trafikolycka stänger riksväg utanför','Falun','Trafikolycka','Transport'],
+      ['Kokningsrekommendation för dricksvatten i','Kalmar','Förorenat dricksvatten','Dricksvattenförsörjning'],
+      ['Storm orsakar nedfallna träd i','Borås','Storm','Transport'],
+      ['IT-störning påverkar kommunala tjänster i','Lund','IT-störning','Offentlig förvaltning'],
+      ['Gasläcka vid byggarbete i','Helsingborg','Utsläpp av farligt ämne','Räddningstjänst'],
+      ['Inställda färjor efter hård vind i','Visby','Storm','Transport'],
+      ['Avbrott i vattenleveransen i','Växjö','Vattenavbrott','Dricksvattenförsörjning'],
+      ['Brand i flerfamiljshus i','Eskilstuna','Brand','Räddningstjänst'],
+      ['Översvämmade vägar i','Kristianstad','Översvämning','Transport'],
+      ['Elavbrott efter kabelfel i','Skellefteå','Energibortfall','Energiförsörjning'],
+      ['Telefonistörning vid vårdcentraler i','Jönköping','Avbrott i kommunikation','Hälso- och sjukvård'],
+      ['Bro avstängd för inspektion i','Luleå','Infrastrukturstörning','Transport'],
+      ['Vattenläcka påverkar skolor i','Halmstad','Vattenavbrott','Utbildning'],
+      ['Tågförseningar efter kontaktledningsfel i','Östersund','Infrastrukturstörning','Transport'],
+      ['Rök från skogsbrand nära','Mora','Skogsbrand','Räddningstjänst']
+    ]
+    const dateFormat = new Intl.DateTimeFormat('sv-SE', { day:'numeric', month:'long', timeZone:'UTC' })
+    function olderEvent(index) {
+      const [headline, city, risk, service] = olderExamples[index % olderExamples.length]
+      const group = dateFormat.format(new Date(Date.UTC(2026, 9, 14 - Math.floor(index / 2))))
+      return { title:`${headline} ${city}`, group, time:index % 2 === 0 ? '10:15' : '08:40', risk, reach:`Lokalt · ${city}`, service, source:`${headline} ${city}. Berörda verksamheter arbetar med att hantera situationen. Detta är en fiktiv källtext för att prova historikens navigering.` }
+    }
+    const toggleIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="1"/><path d="M9 4v16"/><path class="direction" d="m16 9-3 3 3 3"/></svg>`
+    document.querySelector('#gallery').innerHTML = `
+        <div class="preview">
+          <header class="app-header"><button type="button" class="brand" aria-label="Gå till startsidan"><small>Underrättelse &amp; Analys</small><strong>Förstärkt analysförmåga</strong></button><div class="header-tools"><div class="search-placeholder" aria-label="Sökning, endast visuell skiss"><span aria-hidden="true">⌕</span>Sök händelser…</div><span class="header-page">Hem</span></div></header>
+          <div class="workspace">
+            <div class="sidebar-slot"><aside class="sidebar" id="history" aria-label="Analyshistorik">
+              <div class="sidebar-head"><h2 class="side-title">Senaste analyser</h2><button type="button" class="sidebar-toggle" aria-expanded="true" aria-controls="history" aria-label="Dölj historik" title="Dölj historik">${toggleIcon}<span class="toggle-label">Historik</span></button></div>
+              <div class="history-scroll" tabindex="0" role="region" aria-label="Rullbar analyshistorik"><div class="history-items"></div><div class="more-row"><button type="button" class="load-more">Visa fler <span aria-hidden="true">↓</span></button></div></div>
+            </aside></div>
+            <section class="stage" aria-label="Analysyta"><div class="stage-tools"></div><div class="stage-inner"></div></section>
+          </div>
+          <p class="history-status visually-hidden" role="status" aria-live="polite"></p>
+        </div>`
+
+    {
+      const preview = document.querySelector('.preview')
+      const stage = preview.querySelector('.stage-inner')
+      const pageLabel = preview.querySelector('.header-page')
+      const sidebar = preview.querySelector('.sidebar')
+      const scrollArea = preview.querySelector('.history-scroll')
+      const items = preview.querySelector('.history-items')
+      const toggle = preview.querySelector('.sidebar-toggle')
+      const events = [...initialEvents]
+      let selected = null
+      let draft = ''
+
+      function renderHistory() {
+        let lastGroup = null
+        let list
+        items.replaceChildren()
+        events.forEach((event, index) => {
+          if (event.group !== lastGroup) {
+            const group = document.createElement('section')
+            group.className = 'day-group'
+            group.innerHTML = `<h4 class="group-label">${event.group}</h4><ol class="event-list"></ol>`
+            items.append(group)
+            list = group.querySelector('ol')
+            lastGroup = event.group
+          }
+          const row = document.createElement('li')
+          row.innerHTML = `<button type="button" class="event" data-event="${index}" aria-current="${selected === index}" aria-label="Öppna analys: ${event.title}, ${event.group} ${event.time}"><span class="event-time" aria-hidden="true">${event.time}</span><span><span class="event-title">${event.title}</span><span class="event-meta"><span class="done">Klar</span></span></span></button>`
+          list.append(row)
+        })
+      }
+
+      function showHome() {
+        selected = null
+        pageLabel.textContent = 'Hem'
+        items.querySelectorAll('.event').forEach(button => button.setAttribute('aria-current', 'false'))
+        stage.innerHTML = `<h3>Förstärkt Analysförmåga</h3><div class="composer"><div class="composer-inner"><label class="field-label" for="source">Källtext</label><textarea id="source" placeholder="Skriv eller klistra in text här…"></textarea></div></div><div class="actions"><button class="analyze" type="button">Analysera <span aria-hidden="true">↗</span></button></div><p class="demo-hint" role="status"></p>`
+        const input = stage.querySelector('textarea')
+        input.value = draft
+        input.addEventListener('input', () => { draft = input.value })
+        stage.querySelector('.analyze').addEventListener('click', () => {
+          stage.querySelector('.demo-hint').textContent = 'Analys är inte ansluten i skissen.'
+        })
+      }
+
+      function setExpanded(expanded) {
+        // Move the same button so its focus and keyboard behavior are preserved.
+        preview.querySelector(expanded ? '.sidebar-head' : '.stage-tools').append(toggle)
+        sidebar.inert = !expanded
+        sidebar.setAttribute('aria-hidden', String(!expanded))
+        preview.classList.toggle('collapsed', !expanded)
+        toggle.setAttribute('aria-expanded', String(expanded))
+        toggle.setAttribute('aria-label', expanded ? 'Dölj historik' : 'Visa historik')
+        toggle.title = expanded ? 'Dölj historik' : 'Visa historik'
+        toggle.focus({ preventScroll:true })
+      }
+      toggle.addEventListener('click', () => setExpanded(toggle.getAttribute('aria-expanded') === 'false'))
+
+      preview.querySelector('.load-more').addEventListener('click', () => {
+        const previousScroll = scrollArea.scrollTop
+        const firstAddedIndex = events.length
+        const olderCount = events.length - initialEvents.length
+        for (let offset = 0; offset < 20; offset++) events.push(olderEvent(olderCount + offset))
+        renderHistory()
+        // Keep the reading position; keyboard users continue at the first new item.
+        scrollArea.scrollTop = previousScroll
+        items.querySelector(`[data-event="${firstAddedIndex}"]`).focus({ preventScroll:true })
+        preview.querySelector('.history-status').textContent = `20 äldre analyser tillagda · Visar ${events.length} analyser`
+      })
+
+      items.addEventListener('click', click => {
+        const button = click.target.closest('.event')
+        if (!button) return
+        selected = Number(button.dataset.event)
+        const event = events[selected]
+        items.querySelectorAll('.event').forEach(other => other.setAttribute('aria-current', String(other === button)))
+        pageLabel.textContent = 'Sammanfattning'
+        stage.innerHTML = `<div class="summary-top"><span>Analyserad ${event.group.toLocaleLowerCase('sv')}, ${event.time}</span><span class="summary-badge">✓ Analys slutförd</span></div><h3 tabindex="-1">${event.title}</h3><div class="summary-box"><h4>Sammanfattning</h4><div class="result-row"><span>Risker</span><strong>${event.risk}</strong></div><div class="result-row"><span>Räckvidd</span><strong>${event.reach}</strong></div><div class="result-row"><span>Samhällsverksamhet</span><strong>${event.service}</strong></div><details class="source"><summary>Visa källtext</summary><p>${event.source}</p></details></div><button class="back" type="button">← Tillbaka till källtexten</button>`
+        stage.querySelector('.back').addEventListener('click', () => {
+          showHome()
+          stage.querySelector('textarea').focus({ preventScroll:true })
+        })
+        if (preview.getBoundingClientRect().width <= 620) setExpanded(false)
+        stage.querySelector('h3').focus({ preventScroll:true })
+      })
+
+      preview.querySelector('.brand').addEventListener('click', () => {
+        showHome()
+        stage.querySelector('textarea').focus({ preventScroll:true })
+      })
+      preview.addEventListener('keydown', event => {
+        if (event.key === 'Escape' && !sidebar.inert && sidebar.contains(event.target)) {
+          setExpanded(false)
+          event.preventDefault()
+        }
+      })
+      renderHistory()
+      showHome()
+    }
+
+    document.querySelector('.width-toggle').addEventListener('click', event => {
+      const narrow = document.body.classList.toggle('narrow')
+      event.currentTarget.setAttribute('aria-pressed', String(narrow))
+      event.currentTarget.textContent = narrow ? 'Visa bred vy' : 'Visa smal vy'
+    })
+  </script>
+</body>
+</html>

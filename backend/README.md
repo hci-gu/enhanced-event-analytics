@@ -284,10 +284,11 @@ front of Python/frontend. PocketBase's dashboard remains available locally.
 
 The Analysis create rule requires a users identity and matching `created_by`.
 Updates require the same creator and cannot change `created_by`, `analysis_id`,
-or `original_text`. Listing, viewing and deletion remain locked; no frontend
-database query/search routes exist yet. Public users registration is allowed by
+or `original_text`. Listing and viewing require the same owner and `Complete`
+status; deletion remains locked. The history endpoints below expose read-only
+analysis retrieval. Public users registration is allowed by
 its create rule, while the other user record operations remain locked. Python
-exposes only email/password registration and model-generated analysis operations.
+exposes email/password registration, analysis operations and authenticated history.
 PocketBase also rejects registration of verified/visibility/custom-ID values and
 strips hidden token-key input before rule evaluation.
 
@@ -295,6 +296,33 @@ This design relies on local process/network isolation: a process able to call
 PocketBase directly with a user's token has that user's result-write permissions.
 The Origin allowlist protects Python's browser endpoints; it does not make an
 exposed PocketBase safe. Do not add a generic database proxy to Python.
+
+## Analysis history
+
+Restart PocketBase to apply `1792152000_enable_history.go` before using history.
+This enables owner-scoped reads of `Complete` records and adds an index on owner,
+status, creation time and record ID. Existing records are not rewritten.
+
+Both endpoints require the session cookie and refresh/verify it through PocketBase.
+Reads forward the verified user token, filter by that owner and `Complete` status,
+and return `Cache-Control: no-store`, including on errors.
+
+- `GET /analyses?limit=5` returns `{items, next_cursor}`. Metadata includes the
+  PocketBase `id`, backend `analysis_id`, title, status, `created` and `finished_at`.
+  The source and predictions are not loaded for list requests.
+- `GET /analyses?limit=20&cursor=...` retrieves older results. Limits are 1–20;
+  the opaque cursor encodes the last creation time and record ID. Both are strictly
+  validated before being used in PocketBase's filter. Results sort by
+  `created DESC, id DESC`; new records do not shift subsequent pages.
+- `GET /analyses/{analysis_id}` uses the backend UUID v4 and returns the metadata,
+  `original_text`, workflow-keyed `predictions`, `dates`, `dates_error` and a workflow
+  catalog. Unknown historical workflow IDs remain present. No generation runs.
+
+Missing, incomplete, unattributed or other users' records return 404 for details;
+list reads omit them. Storage failures return 503 without database details or tokens.
+Legacy records without finish times use creation time in the frontend. Persistence
+remains best effort: unsaved results cannot be recovered through these endpoints.
+Failed/processing history, full-text search and live cross-tab updates are not implemented.
 
 ## Login and registration
 
@@ -605,7 +633,7 @@ the hosting proxy as well. The frontend's `/api` prefix must be stripped.
 ## Verification
 
 ```powershell
-uv run --extra CPU python -m py_compile app.py serving.py auth.py workflows.py embeddings.py persistence.py vector_storage.py
+uv run --extra CPU python -m py_compile app.py serving.py auth.py history.py workflows.py embeddings.py persistence.py vector_storage.py
 uv run --extra CPU python -m pytest
 uv lock --check
 ```

@@ -9,6 +9,9 @@ import { canSubmit, pageAfterUpdate } from './navigation'
 import type { Page } from './navigation'
 import './App.css'
 import { SessionExpiredError } from './auth'
+import HistorySidebar, { HistoryToggle } from './HistorySidebar'
+import { loadSavedAnalysis } from './history'
+import type { SavedAnalysis } from './history'
 
 function App({ onLogout, onSessionExpired }: { onLogout: () => void; onSessionExpired: () => void }) {
   const [text, setText] = useState('')
@@ -19,6 +22,16 @@ function App({ onLogout, onSessionExpired }: { onLogout: () => void; onSessionEx
   const [submittedText, setSubmittedText] = useState('')
   const [page, setPage] = useState<Page>('home')
   const [healthError, setHealthError] = useState<string | null>(null)
+  const [historyExpanded, setHistoryExpanded] = useState(() => !window.matchMedia('(max-width: 800px)').matches)
+  const [historyVersion, setHistoryVersion] = useState(0)
+  const [savedAnalysis, setSavedAnalysis] = useState<SavedAnalysis | null>(null)
+  const [openingId, setOpeningId] = useState<string | null>(null)
+  const [historyError, setHistoryError] = useState<string | null>(null)
+  const historyViewing = useRef(false)
+  const historyController = useRef<AbortController | null>(null)
+  const expandedToggle = useRef<HTMLButtonElement>(null)
+  const collapsedToggle = useRef<HTMLButtonElement>(null)
+  const previousExpanded = useRef(historyExpanded)
   const healthRequest = useRef<Promise<void> | null>(null)
   const healthDialogRef = useRef<HTMLDialogElement>(null)
   const requestPending = useRef(false)
@@ -27,7 +40,52 @@ function App({ onLogout, onSessionExpired }: { onLogout: () => void; onSessionEx
   const formRef = useRef<HTMLFormElement>(null)
   const focusComposer = useRef(false)
 
-  useEffect(() => () => requestController.current?.abort(), [])
+  useEffect(() => () => {
+    requestController.current?.abort()
+    historyController.current?.abort()
+  }, [])
+
+  useLayoutEffect(() => {
+    if (previousExpanded.current !== historyExpanded) {
+      const target = historyExpanded ? expandedToggle : collapsedToggle
+      target.current?.focus({ preventScroll: true })
+      previousExpanded.current = historyExpanded
+    }
+  }, [historyExpanded])
+
+  function navigate(nextPage: Page) {
+    historyController.current?.abort()
+    setOpeningId(null)
+    setHistoryError(null)
+    historyViewing.current = nextPage !== 'home' && savedAnalysis !== null
+    if (nextPage === 'home') {
+      setSavedAnalysis(null)
+    }
+    setPage(nextPage)
+  }
+
+  async function openHistory(analysisId: string) {
+    historyController.current?.abort()
+    const controller = new AbortController()
+    historyController.current = controller
+    historyViewing.current = true
+    setOpeningId(analysisId)
+    setHistoryError(null)
+    try {
+      const saved = await loadSavedAnalysis(analysisId, controller.signal)
+      if (controller.signal.aborted) return
+      setSavedAnalysis(saved)
+      setPage('summary')
+      if (window.matchMedia('(max-width: 800px)').matches) setHistoryExpanded(false)
+    } catch (error) {
+      if (controller.signal.aborted) return
+      historyViewing.current = savedAnalysis !== null
+      if (error instanceof SessionExpiredError) onSessionExpired()
+      else setHistoryError(error instanceof Error ? error.message : 'Analysen kunde inte öppnas.')
+    } finally {
+      if (!controller.signal.aborted) setOpeningId(null)
+    }
+  }
 
   useEffect(() => {
     if (page === 'home' && focusComposer.current) {
@@ -79,6 +137,11 @@ function App({ onLogout, onSessionExpired }: { onLogout: () => void; onSessionEx
     if (!canSubmit(trimmedText, requestPending.current)) return
 
     requestPending.current = true
+    historyController.current?.abort()
+    historyViewing.current = false
+    setSavedAnalysis(null)
+    setOpeningId(null)
+    setHistoryError(null)
     setIsLoading(true)
     setSubmittedText(text)
     setAnalysis(initialAnalysis)
@@ -92,7 +155,8 @@ function App({ onLogout, onSessionExpired }: { onLogout: () => void; onSessionEx
         if (!controller.signal.aborted) {
           setAnalysis(state)
           const previous = previousStatus
-          setPage((current) => pageAfterUpdate(current, previous, state.status))
+          if (!historyViewing.current) setPage((current) => pageAfterUpdate(current, previous, state.status))
+          if (state.status === 'completed') setHistoryVersion((version) => version + 1)
           previousStatus = state.status
         }
       }, controller.signal)
@@ -114,8 +178,11 @@ function App({ onLogout, onSessionExpired }: { onLogout: () => void; onSessionEx
   function startNewAnalysis() {
     focusComposer.current = true
     setText('')
-    setPage('home')
+    navigate('home')
   }
+
+  const visibleAnalysis = savedAnalysis?.analysis ?? analysis
+  const visibleText = savedAnalysis?.text ?? submittedText
 
   return (
     <main
@@ -139,7 +206,7 @@ function App({ onLogout, onSessionExpired }: { onLogout: () => void; onSessionEx
         <button type="button" autoFocus onClick={() => setHealthError(null)}>Stäng</button>
       </dialog>
       <header className="app-toolbar">
-        <button type="button" className="app-brand" onClick={() => setPage('home')} aria-label="Förstärkt analysförmåga – Hem">
+        <button type="button" className="app-brand" onClick={() => navigate('home')} aria-label="Förstärkt analysförmåga – Hem">
           <span>Underrättelse &amp; Analys</span>
           <span>Förstärkt analysförmåga</span>
         </button>
@@ -159,43 +226,59 @@ function App({ onLogout, onSessionExpired }: { onLogout: () => void; onSessionEx
               />
             </label>
           </div>
-          <PageMenu page={page} analysis={analysis} onNavigate={setPage} />
+          <PageMenu page={page} analysis={visibleAnalysis} onNavigate={navigate} />
           <button type="button" className="text-action logout-action" onClick={() => {
             requestController.current?.abort()
             onLogout()
           }}>Logga ut</button>
         </div>
       </header>
-      {page !== 'home' && analysis ? (
-        <AnalysisView analysis={analysis} text={submittedText} page={page} onNewAnalysis={startNewAnalysis} />
-      ) : (
-        <section className="event-section" aria-labelledby="homepage-title">
-          <h1 id="homepage-title">Förstärkt Analysförmåga</h1>
-          <form ref={formRef} onSubmit={analyzeEvent} aria-busy={isLoading}>
-            <div className="event-widget">
-              <div className="event-widget-inner">
-                <label className="field-label" htmlFor="event-text">Källtext</label>
-                <textarea
-                  ref={textareaRef}
-                  rows={1}
-                  id="event-text"
-                  aria-label="Händelsetext"
-                  placeholder="Skriv eller klistra in text här…"
-                  value={text}
-                  onChange={(event) => setText(event.target.value)}
-                  readOnly={isLoading}
-                  required
-                />
-              </div>
-            </div>
-            <div className="event-actions">
-              <button type="submit" disabled={!text.trim() || isLoading}>
-                {isLoading ? 'Analyserar…' : 'Analysera'}
-              </button>
-            </div>
-          </form>
-        </section>
-      )}
+      <div className="app-workspace" data-history-expanded={historyExpanded} onKeyDown={(event) => {
+        if (event.key === 'Escape' && historyExpanded && (event.target as HTMLElement).closest('.history-sidebar')) {
+          setHistoryExpanded(false)
+          event.preventDefault()
+        }
+      }}>
+        <HistorySidebar expanded={historyExpanded} refreshKey={historyVersion}
+          selectedId={page === 'home' ? null : visibleAnalysis?.analysisId ?? null} openingId={openingId}
+          onOpen={(id) => void openHistory(id)} onSessionExpired={onSessionExpired}
+          toggle={historyExpanded ? <HistoryToggle expanded onToggle={() => setHistoryExpanded(false)} buttonRef={expandedToggle} /> : null} />
+        <div className="workspace-main">
+          <div className="workspace-tools">{!historyExpanded && <HistoryToggle expanded={false}
+            onToggle={() => setHistoryExpanded(true)} buttonRef={collapsedToggle} />}</div>
+          {historyError && <p className="history-open-error" role="alert">{historyError}</p>}
+          {page !== 'home' && visibleAnalysis ? (
+            <AnalysisView key={visibleAnalysis.analysisId} analysis={visibleAnalysis} text={visibleText} page={page} onNewAnalysis={startNewAnalysis} />
+          ) : (
+            <section className="event-section" aria-labelledby="homepage-title">
+              <h1 id="homepage-title">Förstärkt Analysförmåga</h1>
+              <form ref={formRef} onSubmit={analyzeEvent} aria-busy={isLoading}>
+                <div className="event-widget">
+                  <div className="event-widget-inner">
+                    <label className="field-label" htmlFor="event-text">Källtext</label>
+                    <textarea
+                      ref={textareaRef}
+                      rows={1}
+                      id="event-text"
+                      aria-label="Händelsetext"
+                      placeholder="Skriv eller klistra in text här…"
+                      value={text}
+                      onChange={(event) => setText(event.target.value)}
+                      readOnly={isLoading}
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="event-actions">
+                  <button type="submit" disabled={!text.trim() || isLoading}>
+                    {isLoading ? 'Analyserar…' : 'Analysera'}
+                  </button>
+                </div>
+              </form>
+            </section>
+          )}
+        </div>
+      </div>
     </main>
   )
 }

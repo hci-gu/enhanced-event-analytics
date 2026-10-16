@@ -38,6 +38,7 @@ from embeddings import embed_document, load_embedding_runtime
 from persistence import AnalysisPersistence, create_pocketbase_client
 from vector_storage import VectorStorage, create_vector_storage
 from auth import UserSession, require_origin, require_user, router as auth_router
+from history import router as history_router
 from serving import GenerationEngine, TransformersEngine, VllmSettings, create_vllm_engine, load_serving_engine
 
 
@@ -233,19 +234,20 @@ async def model_lifespan(app: FastAPI):
 
 app = FastAPI(title="Enhanced Event Analytics", lifespan=lifespan)
 app.include_router(auth_router)
+app.include_router(history_router)
 
 
 @app.exception_handler(HTTPException)
 async def http_error(request: Request, exc: HTTPException):
     response = await http_exception_handler(request, exc)
-    if request.url.path.startswith("/auth/"):
+    if request.url.path.startswith(("/auth/", "/analyses")):
         response.headers["Cache-Control"] = "no-store"
     return response
 
 
 @app.exception_handler(RequestValidationError)
 async def validation_error(request: Request, exc: RequestValidationError):
-    if request.url.path.startswith("/auth/"):
+    if request.url.path.startswith(("/auth/", "/analyses")):
         # Pydantic's default errors echo input, which can include passwords.
         return JSONResponse(status_code=422, content={"detail": [
             {key: error[key] for key in ("type", "loc", "msg")} for error in exc.errors()

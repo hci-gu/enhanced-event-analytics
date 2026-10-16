@@ -110,7 +110,7 @@ func TestAnalysisRecordConstraints(t *testing.T) {
 	if err := app.Save(stored); err != nil {
 		t.Fatalf("embedding failure must allow successful category analysis: %v", err)
 	}
-	if collection.ListRule != nil || collection.ViewRule != nil || collection.CreateRule == nil || collection.UpdateRule == nil || collection.DeleteRule != nil {
-		t.Fatal("only attributed user writes should be enabled")
+	if collection.ListRule == nil || collection.ViewRule == nil || collection.CreateRule == nil || collection.UpdateRule == nil || collection.DeleteRule != nil {
+		t.Fatal("attributed user reads and writes should be enabled; deletion stays locked")
 	}
 }
