@@ -597,11 +597,13 @@ the hosting proxy as well. The frontend's `/api` prefix must be stripped.
 ## Verification
 
 ```powershell
-uv run --extra CPU python -m py_compile app.py serving.py auth.py workflows.py embeddings.py persistence.py conftest.py test_app.py test_serving.py test_auth.py test_workflows.py test_stream.py test_title.py test_embeddings.py test_persistence.py smoke_articles.py
+uv run --extra CPU python -m py_compile app.py serving.py auth.py workflows.py embeddings.py persistence.py vector_storage.py
 uv run --extra CPU python -m pytest
 uv lock --check
 ```
 
+All backend test scripts and shared fixtures live in `tests/`. Pytest discovers
+the mocked suite there; the real-inference smoke script is excluded by its filename.
 Tests mock both model loading and inference and do not download model weights or require a GPU.
 Serving tests cover both engine paths with mocked vLLM, configuration rejection,
 serialized generation, token limits, lifecycle cleanup, and JSON/SSE contracts.
@@ -611,13 +613,13 @@ writes, partial failure, independent embedding status, cancellation, creator att
 cookie handling, origin checks, registration validation and client cleanup.
 Embedding tests cover text-only loading, device/dtype selection, truncation,
 pooling/normalization, logging, concurrent analysis, failures, and cleanup.
-They include both `data/` articles to verify endpoint plumbing with mocked outputs;
+They include both `data/events/` articles to verify endpoint plumbing with mocked outputs;
 those checks do not establish article classification accuracy.
 
 For real inference, restart the backend with Gemma and run this from `backend/`:
 
 ```powershell
-uv run --extra CPU python smoke_articles.py --email user@example.com
+uv run --extra CPU python tests/smoke_articles.py --email user@example.com
 ```
 
 This sends both articles to the running backend, reusing its resident model rather

@@ -42,13 +42,13 @@ def main():
     if status.get("const") != "ok":
         raise RuntimeError("Running backend has the old API. Restart it before the article check.")
 
-    directory = Path(__file__).parent
+    directory = Path(__file__).resolve().parents[1]
     names_by_workflow = {}
     for name in ("risks", "reach", "service", "properties", "protection"):
         categories = json.loads((directory / "schemas" / f"{name}.json").read_text(encoding="utf-8"))
         names_by_workflow[name] = {category["ID"]: category["name"] for category in categories}
     for filename in ("test-event.txt", "test-event2.txt"):
-        text = (directory.parent / "data" / filename).read_text(encoding="utf-8")
+        text = (directory.parent / "data" / "events" / filename).read_text(encoding="utf-8")
         result = call(f"{base_url}/analyze-event", {"text": text})
         assert result["status"] == "ok"
         assert set(result["results"]) == set(names_by_workflow), "Restart backend to load all workflows"

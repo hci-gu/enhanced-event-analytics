@@ -179,7 +179,7 @@ def test_article_endpoint_contract(loaders, monkeypatch, article):
         '[{"ID":"varaktighet"}]', '[{"ID":"samhällets_funktionalitet"}]',
     ] * 2)
     monkeypatch.setattr(workflows, "generate_text", generator)
-    text = (Path(__file__).parent.parent / "data" / "events" / article).read_text(encoding="utf-8")
+    text = (Path(__file__).resolve().parents[2] / "data" / "events" / article).read_text(encoding="utf-8")
     with TestClient(backend.app) as client:
         runtime = backend.app.state.runtime
         for _ in range(2):

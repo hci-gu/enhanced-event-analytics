@@ -3,7 +3,7 @@
 ## Project Structure & Module Organization
 
 - `frontend/`: React 19/TypeScript with Vite and React Compiler. `src/App.tsx` owns the composer, health dialog, navigation, and in-memory analysis. `api.ts` handles HTTP, `analysis.ts` handles stream parsing/state, and `evidence.ts` links exact quotes. `AnalysisScreen`, `SummaryScreen`, `WorkflowRow`, and `PageMenu` provide the analysis UI. Shared colors live in `src/colors.css`; global and component layouts use `src/*.css`. Tests live in `tests/`.
-- `backend/`: FastAPI/Pydantic API in `app.py`; shared inference, title generation, and registered categorization workflows in `workflows.py`. Category definitions live in `schemas/*.json`. Dependencies and CPU/CUDA profiles are managed by `pyproject.toml` and `uv.lock`; mocked pytest suites are `test_*.py`. `smoke_articles.py` calls a running backend for real inference.
+- `backend/`: FastAPI/Pydantic API in `app.py`; shared inference, title generation, and registered categorization workflows in `workflows.py`. Category definitions live in `schemas/*.json`. Dependencies and CPU/CUDA profiles are managed by `pyproject.toml` and `uv.lock`; mocked pytest suites and shared fixtures live in `tests/`. `tests/smoke_articles.py` calls a running backend for real inference.
 - `pocketbase/`: Go service in `main.go`, serving `pb_public/` when present. Runtime databases belong in ignored `pb_data/`.
 - `data/`: Swedish news samples in `test-event*.txt`, with source links for the original two articles in root `README.md`. These are inputs, not test suites.
 - `frontend/README.md` and `backend/README.md` document setup, behavior, and verification. `system-design.md` describes implemented and planned architecture; root `assets/` contains its diagrams. Keep these aligned with implementation changes. `frontend/DESIGN.md` and `src/Design.css` are historical design references; the latter is not imported by the application.
@@ -46,7 +46,7 @@ Run the smallest relevant checks for the change. Frontend verification uses lint
 
 When implementing features, do not run any tests that require loading a model, including tests whose fixtures or setup load models. Use mocks or model-independent checks instead, and report any model-loading tests that were skipped.
 
-Do not start the real backend or run `smoke_articles.py` as routine feature verification: startup loads a model, and the smoke script performs real inference against a resident model. Reserve these checks for an explicit request for real-model verification; mocked tests do not establish classification quality.
+Do not start the real backend or run `tests/smoke_articles.py` as routine feature verification: startup loads a model, and the smoke script performs real inference against a resident model. Reserve these checks for an explicit request for real-model verification; mocked tests do not establish classification quality.
 
 ## Commit & Pull Request Guidelines
 
