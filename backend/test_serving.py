@@ -303,7 +303,7 @@ def test_generation_is_serialized(fake_vllm):
 
 
 @pytest.fixture
-def api_runtime(monkeypatch, pocketbase, settings_environment, fake_vllm, request):
+def api_runtime(monkeypatch, pocketbase, settings_environment, fake_vllm, request, no_date_inference):
     mode = request.param
     monkeypatch.setenv("SERVING_ENGINE", mode)
     monkeypatch.setattr(backend, "load_dotenv", Mock())

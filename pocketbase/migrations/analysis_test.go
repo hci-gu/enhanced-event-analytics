@@ -47,6 +47,12 @@ func TestAnalysisRecordConstraints(t *testing.T) {
 	if !record.GetDateTime("finished_at").IsZero() {
 		t.Fatal("processing record must not have an automatic finish time")
 	}
+	for _, name := range []string{"dates", "dates_error"} {
+		field, ok := collection.Fields.GetByName(name).(*core.JSONField)
+		if !ok || field.Required {
+			t.Fatalf("%s must be an optional JSON field for legacy records", name)
+		}
+	}
 	if err := app.Save(newRecord(uuid, "Processing")); err == nil {
 		t.Fatal("duplicate backend UUID was accepted")
 	}
@@ -60,6 +66,8 @@ func TestAnalysisRecordConstraints(t *testing.T) {
 		}
 	}
 	record.Set("predictions", map[string]any{"risks": []any{}})
+	record.Set("dates", map[string]any{"published_at": "2026-10-13", "event_end": nil})
+	record.Set("dates_error", map[string]any{"code": 502, "message": "Date extraction failed"})
 	record.Set("error", map[string]any{"workflow_id": "reach", "code": 502, "message": "Failed"})
 	record.Set("status", "Failed")
 	record.Set("embedding_status", "Complete")
@@ -72,6 +80,16 @@ func TestAnalysisRecordConstraints(t *testing.T) {
 		t.Fatal(err)
 	}
 	var predictions map[string]any
+	var dates, datesError map[string]any
+	if err := stored.UnmarshalJSONField("dates", &dates); err != nil {
+		t.Fatal(err)
+	}
+	if err := stored.UnmarshalJSONField("dates_error", &datesError); err != nil {
+		t.Fatal(err)
+	}
+	if dates["published_at"] != "2026-10-13" || dates["event_end"] != nil || datesError["code"] != float64(502) {
+		t.Fatal("date values and nonfatal errors must survive a JSON round trip")
+	}
 	if err := stored.UnmarshalJSONField("predictions", &predictions); err != nil {
 		t.Fatal(err)
 	}

@@ -89,6 +89,7 @@ class AnalysisPersistence:
             "analysis_id": analysis_id, "original_text": text, "created_by": created_by,
             "status": "Processing", "embedding_status": "Processing",
             "title": "", "predictions": {}, "error": None, "finished_at": "",
+            "dates": None, "dates_error": None,
         }
         # Do not retry an uncertain POST: it may have committed before a timeout.
         self.record_id = client.save(analysis_id, self.data, self._token)
@@ -107,6 +108,10 @@ class AnalysisPersistence:
             elif event == "workflow_completed":
                 self.data["predictions"][data["id"]] = data["results"]
                 self._save()
+            elif event == "analysis_completed":
+                self.data["dates"] = data.get("dates")
+                self.data["dates_error"] = data.get("dates_error")
+                self._save()
 
     def embedding_completed(self, success: bool):
         with self.lock:
@@ -120,6 +125,8 @@ class AnalysisPersistence:
             self.terminal = True
             if results:
                 self.data["title"] = results["title"]
+                self.data["dates"] = results.get("dates")
+                self.data["dates_error"] = results.get("dates_error")
                 for workflow_id, predictions in results["results"].items():
                     self.data["predictions"].setdefault(workflow_id, predictions)
             self.data["status"] = "Failed" if error else "Complete"

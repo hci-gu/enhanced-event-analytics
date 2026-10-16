@@ -15,7 +15,7 @@ EMBEDDING = {
 
 
 @pytest.fixture
-def loaders(monkeypatch, pocketbase):
+def loaders(monkeypatch, pocketbase, no_date_inference):
     # Existing inference tests focus on analysis contracts; auth has its own suite.
     monkeypatch.setitem(backend.app.dependency_overrides, backend.require_user,
                         lambda: backend.UserSession("testuser0000001", "user@example.com", "user-token"))
@@ -147,7 +147,7 @@ def test_requests_share_runtime_and_cleanup(loaders, monkeypatch):
             response = client.post("/analyze-event", json={"text": "  Swedish event  "})
             assert response.status_code == 200
             assert response.json() == {"status": "ok", "title": "Testhändelse", "results": empty_results,
-                                       "embedding": EMBEDDING, "embedding_error": None}
+                                       "embedding": EMBEDDING, "embedding_error": None, "dates": None, "dates_error": None}
         assert runner.call_count == 2
         assert runner.call_args.args == ("Swedish event", runtime, backend.app.state.workflow_categories)
         assert callable(runner.call_args.kwargs["on_event"])
@@ -179,7 +179,7 @@ def test_article_endpoint_contract(loaders, monkeypatch, article):
         '[{"ID":"varaktighet"}]', '[{"ID":"samhällets_funktionalitet"}]',
     ] * 2)
     monkeypatch.setattr(workflows, "generate_text", generator)
-    text = (Path(__file__).parent.parent / "data" / article).read_text(encoding="utf-8")
+    text = (Path(__file__).parent.parent / "data" / "events" / article).read_text(encoding="utf-8")
     with TestClient(backend.app) as client:
         runtime = backend.app.state.runtime
         for _ in range(2):
@@ -187,6 +187,7 @@ def test_article_endpoint_contract(loaders, monkeypatch, article):
             assert response.status_code == 200
             assert response.json() == {
                 "status": "ok",
+                "dates": None, "dates_error": None,
                 "title": "Testhändelse",
                 "embedding": EMBEDDING,
                 "embedding_error": None,

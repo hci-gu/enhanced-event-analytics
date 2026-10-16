@@ -140,6 +140,20 @@ again. Back up both databases together with their writers stopped or coordinated
 filesystem snapshots; see [storage setup](backend/README.md#lancedb-vector-storage).
 
 `workflows.py` defines independent workflow functions and the `WORKFLOWS` registry.
+After the five registered category workflows, a fixed `extract_dates` step uses
+the same inference engine and lock with a separate Swedish prompt (1024 output
+tokens). It extracts original publication and one primary event interval, preserving
+date-only/minute precision and verified exact source quotes. Relative event dates
+are anchored to publication, never the injected analysis clock. A separate rough
+duration hint never creates calendar endpoints. Ongoing events can have an open
+end; missing information remains null. The clock is captured with Python datetime
+as `Datumet är YYYY:MM:DD HH:MM`, using startup-validated `ANALYSIS_TIMEZONE`
+(default `Europe/Stockholm`, with tzdata for Windows). Structured output retries
+use `RETRY_LIMIT`; extraction errors are nonfatal. Both endpoints return top-level
+`dates` and `dates_error` (in stream completion for SSE). They are stored in optional
+PocketBase Analysis JSON fields separately from category predictions; existing
+records need no backfill. The frontend currently ignores these completion fields.
+Format/evidence validation does not establish real-model interpretation quality.
 A fixed `generate_title` step outside the registry runs before categorization,
 using a separate Swedish prompt and the shared model. It generates a factual
 title, strips surrounding quotes/whitespace and validates 1–10 words using Pydantic,
@@ -214,6 +228,7 @@ Collections
   records remain unattributed and user deletion does not cascade-delete analyses,
   independent `embedding_status`: Processing/Failed/Complete, required `original_text`,
   `title`, `predictions`: workflow-keyed JSON including evidence, `error`: failure JSON,
+  optional `dates` and `dates_error`: final extraction output and nonfatal error JSON,
   automatic `created`/`updated` timestamps, optional `finished_at` for the category
   analysis terminal time). Owner-attributed creation/update is allowed; creator,
   UUID and source text cannot be changed through the API. Reads/deletes stay locked.

@@ -108,6 +108,7 @@ def test_title_failure_falls_back_then_runs_categories(loaders, monkeypatch, cap
         response = client.post("/analyze-event", json={"text": "Text"})
     assert response.json() == {
         "status": "ok", "title": workflows.FALLBACK_TITLE,
+        "dates": None, "dates_error": None,
         "embedding": EMBEDDING, "embedding_error": None,
         "results": {"risks": [], "reach": [], "service": [], "properties": [], "protection": []},
     }

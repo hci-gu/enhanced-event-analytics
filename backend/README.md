@@ -194,7 +194,10 @@ Both analysis endpoints create one Analysis record after verifying the session a
 using the request UUID, verified user ID in `created_by`, trimmed original text, and both statuses set to
 `Processing`. They update the same record after title generation and every
 completed workflow, retaining evidence in storage even though the JSON response
-omits it. Category failure saves `Failed`, structured error details, and completed
+omits category evidence. Date results and nonfatal date errors are stored separately
+in the optional `dates` and `dates_error` JSON fields, outside `predictions`.
+Apply the date-field migration before deploying this backend; existing records
+need no backfill. Category failure saves `Failed`, structured error details, and completed
 predictions. Success saves `Complete`. Both terminal states set `finished_at` in
 UTC. Embedding completion independently updates `embedding_status` without
 changing the category status or finish time. Cancellation before an embedding
@@ -459,11 +462,62 @@ workflow, define a function with that signature and register `Workflow(function,
 "category-file.json", "Display label")` under its result key. A function that does not need categories
 can use `Workflow(function)` and receives an empty tuple. Remove an entry to disable
 a workflow. `run_workflows` generates the title first, then runs registered functions
-in order and returns `{title, results}` with category results under their registry
+in order, then extracts dates and returns `{title, results, dates, dates_error}` with category results under their registry
 keys (`risks`, `reach`, `service`, `properties`, `protection`) in that order.
 The stream labels for the new workflows are `Egenskaper` and `Skyddsvärden`.
-All six steps reuse the same model instance;
+All seven steps reuse the same model instance;
 there is one model call per step, not a separate model per task.
+
+### Date extraction
+
+`extract_dates(text, runtime)` runs after all categories and before completion,
+outside the category catalog/progress. It uses the shared inference engine and
+lock, an independent Swedish system prompt, and up to 1024 output tokens.
+`ANALYSIS_TIMEZONE="Europe/Stockholm"` configures the IANA timezone; invalid values
+prevent startup before model loading. The `tzdata` dependency supplies timezone
+data on Windows. Python `datetime` captures the workflow start once and injects
+`Datumet är YYYY:MM:DD HH:MM`, reused for validation retries.
+
+Both the JSON response and streaming `analysis_completed` payload include:
+
+```json
+{
+  "dates": {
+    "published_at": null,
+    "event_start": null,
+    "event_end": null,
+    "end_status": "unknown",
+    "duration_hint": null,
+    "evidence": {"published_at": [], "event_start": [], "event_end": []}
+  },
+  "dates_error": null
+}
+```
+
+The prompt selects original creation/publication, ignoring updates, and one primary
+event interval. Relative event expressions use original publication, never the
+analysis clock; missing anchors and ambiguous endpoints remain null. Forecasts
+attributed to people in the source are allowed. Values use `YYYY-MM-DD` or
+`YYYY-MM-DDTHH:MM`, with a timezone suffix only if supplied by the source. Missing
+times are never filled with midnight. `end_status` is `dated` when an end exists,
+`until_further_notice` for a supported ongoing event with no known end, otherwise
+`unknown`; the start can remain null independently.
+
+The optional `duration_hint` is a separate rough model estimate matching
+`~[positive integer][H|D|W|M|Y]` (hours/days/weeks/months/years). It never creates an
+end date. Exact source evidence is grouped by date field; `event_end` quotes also
+support ongoing status. The backend deduplicates and filters quotes against the
+original text, clears dates without verified quotes, validates calendar formats,
+clears reversed interval ends, and normalizes end status. Exact substring checks
+do not prove that a quote semantically supports a date: publication selection,
+relative-date interpretation and prognosis quality still require model evaluation.
+
+Malformed output retries using `RETRY_LIMIT`; invalid individual dates/hints become
+null without dropping other valid values. Inference failure or exhausted retries
+returns `dates: null` and `dates_error: {"code": ..., "message": ...}` while analysis
+and category results remain successful. No information is a successful extraction
+with the empty object shown above. No frontend rendering is added; the existing
+stream consumer accepts and ignores these additional completion fields.
 
 Category definitions are validated and loaded once during startup before model
 loading. Missing files, invalid JSON, blank/non-string fields, or duplicate IDs
@@ -504,7 +558,7 @@ Each frame is `event: <name>` followed by `data: <JSON>` and a blank line:
 | `workflow_started` | `{ "id": "risks" }` |
 | `workflow_completed` | `{ "id": "risks", "results": [{ "ID": "...", "name": "...", "evidence": ["exact supporting quote"] }] }` |
 | `workflow_failed` | `{ "id": "risks", "message": "...", "code": 502 }` |
-| `analysis_completed` | `{ "embedding": { ... }, "embedding_error": null }` (or a null embedding and structured error) |
+| `analysis_completed` | `{ "embedding": { ... }, "embedding_error": null, "dates": { ... }, "dates_error": null }` (each optional result can independently be null with a structured error) |
 
 The catalog follows registry order; labels default to the registry key when absent.
 After `analysis_started`, title generation runs before any category workflow and

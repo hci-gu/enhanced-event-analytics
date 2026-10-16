@@ -13,6 +13,7 @@ from threading import Lock
 from time import perf_counter
 from typing import Annotated, Any, Literal
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 import torch
 from anyio import CancelScope
@@ -32,7 +33,7 @@ from transformers import (
     ProcessorMixin,
 )
 
-from workflows import WorkflowError, iter_workflow_events, load_retry_limit, load_workflow_categories, run_workflows
+from workflows import DatesFailure, DatesOutput, WorkflowError, iter_workflow_events, load_analysis_timezone, load_retry_limit, load_workflow_categories, run_workflows
 from embeddings import embed_document, load_embedding_runtime
 from persistence import AnalysisPersistence, create_pocketbase_client
 from vector_storage import VectorStorage, create_vector_storage
@@ -64,6 +65,7 @@ class ModelRuntime:
     processor: ProcessorMixin | None = None
     inference_lock: LockType = field(default_factory=Lock, repr=False)
     retry_limit: int = 1
+    analysis_timezone: ZoneInfo | None = None
     serving_engine: Literal["transformers", "vllm"] = "transformers"
     engine: GenerationEngine = field(default_factory=TransformersEngine, repr=False)
 
@@ -154,6 +156,7 @@ def load_runtime() -> ModelRuntime:
 async def lifespan(app: FastAPI):
     load_dotenv(dotenv_path=Path(__file__).with_name(".env"), override=False)
     configure_logging()
+    analysis_timezone = load_analysis_timezone()
     with create_pocketbase_client() as pocketbase:
         app.state.pocketbase = pocketbase
         try:
@@ -165,6 +168,7 @@ async def lifespan(app: FastAPI):
             app.state.vector_storage = storage
             try:
                 async with model_lifespan(app):
+                    app.state.runtime.analysis_timezone = analysis_timezone
                     yield
             finally:
                 await to_thread(storage.close)
@@ -351,6 +355,8 @@ class AnalyzeEventResponse(BaseModel):
     status: Literal["ok"] = "ok"
     embedding: DocumentEmbedding | None = None
     embedding_error: EmbeddingFailure | None = None
+    dates: DatesOutput | None = None
+    dates_error: DatesFailure | None = None
     title: str = Field(description="Generated Swedish event title containing 1–10 words")
     results: dict[str, Any] = Field(
         description="Results keyed by risks, reach, service, properties and protection; each contains matched IDs and display names",
@@ -370,6 +376,7 @@ class AnalyzeEventResponse(BaseModel):
     description=(
         "Generate a Swedish title, then categorize event text by risks, reach, services, properties and protection values using the shared model. "
         "Each workflow returns zero, one, or multiple matches with IDs and display names. "
+        "Date extraction runs last and returns dates separately; date errors preserve category results. "
         "A document embedding runs in parallel and is returned at completion; embedding errors preserve analysis results."
     ),
     responses={

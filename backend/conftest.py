@@ -5,7 +5,14 @@ import httpx
 import pytest
 
 import app as backend
+import workflows
 from persistence import PocketBaseClient
+
+
+@pytest.fixture
+def no_date_inference(monkeypatch):
+    """Isolate existing title/category tests; test_dates exercises date inference."""
+    monkeypatch.setattr(workflows, "extract_dates", lambda text, runtime: {"dates": None, "dates_error": None})
 
 
 @pytest.fixture(autouse=True)

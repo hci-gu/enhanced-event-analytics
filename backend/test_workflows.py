@@ -111,7 +111,7 @@ def test_generation_errors_are_not_retried(categories, monkeypatch, status):
     generator.assert_called_once()
 
 
-def test_registered_workflows_have_separate_prompts_and_categories(monkeypatch):
+def test_registered_workflows_have_separate_prompts_and_categories(monkeypatch, no_date_inference):
     generator = Mock(side_effect=["Testhändelse", "[]", "[]", "[]", "[]", "[]"])
     monkeypatch.setattr(workflows, "generate_text", generator)
     categories = workflows.load_workflow_categories()
@@ -120,6 +120,7 @@ def test_registered_workflows_have_separate_prompts_and_categories(monkeypatch):
     assert len(categories["protection"]) == 5
     runtime = object()
     assert workflows.run_workflows("Event", runtime, categories) == {
+        "dates": None, "dates_error": None,
         "title": "Testhändelse", "results": {
             "risks": [], "reach": [], "service": [], "properties": [], "protection": [],
         },
@@ -351,7 +352,7 @@ def test_concurrent_generation_is_serialized(runtime):
     assert order == ["prepare", "generate", "decode"] * 2
 
 
-def test_registry_orchestrates_functions(categories, monkeypatch):
+def test_registry_orchestrates_functions(categories, monkeypatch, no_date_inference):
     title = Mock(return_value="Testhändelse")
     monkeypatch.setattr(workflows, "generate_title", title)
     first = Mock(return_value=[])
@@ -362,7 +363,8 @@ def test_registry_orchestrates_functions(categories, monkeypatch):
     })
     runtime = object()
     result = workflows.run_workflows("Event", runtime, {"risks": categories, "other": ()})
-    assert result == {"title": "Testhändelse", "results": {"risks": [], "other": {"summary": "Example"}}}
+    assert result == {"title": "Testhändelse", "results": {"risks": [], "other": {"summary": "Example"}},
+                      "dates": None, "dates_error": None}
     title.assert_called_once_with("Event", runtime)
     first.assert_called_once_with("Event", runtime, categories)
     second.assert_called_once_with("Event", runtime, ())

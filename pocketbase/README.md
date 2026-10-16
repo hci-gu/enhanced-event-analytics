@@ -48,6 +48,8 @@ the record API; they do not log collection migrations or failed record writes.
 | `original_text` | Required text, up to 2 Mi characters | Immutable snapshot of the trimmed input actually analyzed; preserves internal whitespace. |
 | `title` | Text | Generated title, including the fallback; initially empty. |
 | `predictions` | JSON, up to 2 MiB | Completed workflow results keyed by workflow ID. Initially `{}` or null. |
+| `dates` | Optional JSON, up to 64 KiB | Original publication, primary event interval, rough duration hint, and exact source quotes. Null before extraction or on extraction failure. |
+| `dates_error` | Optional JSON, up to 16 KiB | Nonfatal date extraction error containing `code` and `message`; null on success. |
 | `error` | JSON | Failure details, or null. |
 | `created`, `updated` | Automatic dates | Record creation and last update times. |
 | `finished_at` | Optional date | UTC time when category analysis becomes `Complete` or `Failed`; empty while processing. |
@@ -66,7 +68,10 @@ The writer saves `original_text` and initializes both status columns to
 `Processing` before inference, save the title when ready,
 and append results after each workflow completes. Preserve partial predictions
 and set `Failed` immediately if any workflow fails. Set `Complete` only after every
-registered category workflow succeeds. An empty match list is a successful result,
+registered category workflow succeeds and the final date extraction attempt finishes.
+Date extraction errors are stored separately in `dates_error` and do not fail the
+analysis. The additive date migration leaves existing records without dates;
+no backfill is required. An empty match list is a successful result,
 not a failure. Title fallback and an embedding failure do not fail category
 analysis. Set `finished_at` when category analysis enters either terminal state;
 later embedding updates must not change that time. Set `embedding_status` to
