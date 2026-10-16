@@ -53,7 +53,8 @@ test('date parsing rejects impossible dates, times and offsets, and preserves da
 test('timeline follows categories, uses the approved copy and offers selectable chronological points', () => {
   const html = render(analysis)
   assert.ok(html.indexOf('class="date-timeline"') > html.indexOf('class="workflow-label"'))
-  assert.match(html, />Tidslinje<\/h2>/)
+  assert.match(html, /class="date-timeline-toggle" aria-expanded="false"/)
+  assert.match(html, /class="date-timeline-details"[^>]*aria-hidden="true" inert=""/)
   assert.doesNotMatch(html, /Välj en tidpunkt|Tidslinje &amp; textstöd|Kategoriseringsresultat|proportionell/)
   assert.match(html, /Grov varaktighet: <strong>~2 timmar/)
   assert.match(html, /aria-pressed="true" aria-controls=/)

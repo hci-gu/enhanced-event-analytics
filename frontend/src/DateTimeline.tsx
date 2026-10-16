@@ -34,22 +34,32 @@ export default function DateTimeline({ dates, analyzedAt, text }: {
       quotes: dates.evidence.event_end.filter((quote) => quote.trim() && text.includes(quote)) })
   }
   const [selectedId, setSelectedId] = useState(points[0].id)
+  const [expanded, setExpanded] = useState(false)
   const selected = points.find((point) => point.id === selectedId) ?? points[0]
 
   return <section className="date-timeline" aria-labelledby={`${id}-title`}>
-    <h2 id={`${id}-title`}>Tidslinje</h2>
+    <h2 id={`${id}-title`}>
+      <button type="button" className="date-timeline-toggle" aria-expanded={expanded}
+        aria-controls={`${id}-details`} onClick={() => setExpanded((open) => !open)}>
+        Tidslinje
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+      </button>
+    </h2>
     <ol className="date-timeline-points" aria-label="Händelsens tidpunkter i kronologisk ordning">
       {points.map((point) => <li key={point.id}>
         <button type="button" className="date-timeline-point" data-kind={point.id}
-          aria-pressed={selected.id === point.id} aria-controls={`${id}-evidence`}
-          onClick={() => setSelectedId(point.id)}>
+          aria-pressed={selected.id === point.id} aria-controls={`${id}-details`} aria-expanded={expanded}
+          onClick={() => { setSelectedId(point.id); setExpanded(true) }}>
           <span className="date-point-label">{point.label}</span>
           {point.value ? <time dateTime={point.value}>{displaySourceDate(point.value)}</time>
             : point.id === 'analysis' ? <time dateTime={analyzedAt}>{analysisLabel}</time> : <strong>Tills vidare</strong>}
         </button>
       </li>)}
     </ol>
-    <div className="date-timeline-evidence" id={`${id}-evidence`} aria-live="polite" aria-atomic="true">
+    <div className="date-timeline-details" id={`${id}-details`} data-expanded={expanded}
+      aria-hidden={!expanded} inert={!expanded}>
+    <div className="date-timeline-details-body">
+    <div className="date-timeline-evidence" aria-live="polite" aria-atomic="true">
       <p className="date-evidence-label">{selected.id === 'analysis' ? 'Analystid' : `Textstöd · ${selected.label.toLocaleLowerCase('sv-SE')}`}</p>
       {selected.id === 'analysis'
         ? <p>Analystiden registreras av systemet {analysisDay} kl. {analysisTime}.</p>
@@ -57,5 +67,7 @@ export default function DateTimeline({ dates, analyzedAt, text }: {
           : <p>Verifierat textstöd saknas.</p>}
     </div>
     {dates.duration_hint && <p className="date-timeline-duration">Grov varaktighet: <strong>{displayDuration(dates.duration_hint)}</strong></p>}
+    </div>
+    </div>
   </section>
 }

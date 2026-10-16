@@ -111,6 +111,11 @@ a new submission replaces it.
 Each pane scrolls internally; mobile stacks text above results.
 When successful date extraction supplies at least one valid source/event date,
 a `Tidslinje` widget appears below the category cards in the results pane.
+It starts collapsed with its title and timeline visible. The title button toggles
+the supporting quotes and rough duration; selecting any milestone also expands it,
+including when reselecting the current milestone. Native buttons support keyboard use.
+Expansion and collapse use the category cards' 180 ms ease-out height/fade timing;
+reduced motion makes the change immediate. Collapsing content becomes inert immediately.
 Known publication/start/end dates are selectable chronological milestones with
 exact supporting quotes; missing dates are omitted and supported open ends show
 `Tills vidare`. Date-only values keep their precision and source times are not

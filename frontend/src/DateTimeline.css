@@ -7,6 +7,12 @@
   container-type: inline-size;
 }
 .date-timeline h2 { margin: 0; font-family: var(--font-heading); font-size: 26px; font-weight: 600; }
+.date-timeline-toggle { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.date-timeline-toggle svg { width: 20px; height: 20px; flex-shrink: 0; stroke: currentColor; stroke-width: 1.5; transition: transform 180ms ease-out; }
+.date-timeline-toggle[aria-expanded='true'] svg { transform: rotate(180deg); }
+.date-timeline-details { display: grid; grid-template-rows: 0fr; opacity: 0; visibility: hidden; transition: grid-template-rows 180ms ease-out, opacity 180ms ease-out, visibility 0s 180ms; }
+.date-timeline-details[data-expanded='true'] { grid-template-rows: 1fr; opacity: 1; visibility: visible; transition: grid-template-rows 180ms ease-out, opacity 180ms ease-out, visibility 0s; }
+.date-timeline-details-body { min-height: 0; overflow: hidden; }
 .date-timeline-points { display: flex; position: relative; list-style: none; padding: 0; margin: 24px 0 0; }
 .date-timeline-points::before { content: ''; position: absolute; top: 9px; left: 5px; right: 5px; height: 1px; background: var(--border-color); }
 .date-timeline-points li { min-width: 0; flex: 1; }
