@@ -351,7 +351,7 @@ def test_analysis_contract_for_both_engines(api_runtime, stream, fake_vllm, pock
             assert "event: analysis_completed" in response.text
             result = {
                 "title": events[1]["title"],
-                "results": {event["id"]: event["results"] for event in events if "results" in event},
+                "results": {event["id"]: event["results"] for event in events if "results" in event and event["id"] != "dates"},
                 **events[-1],
             }
         else:

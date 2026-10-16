@@ -508,7 +508,7 @@ def iter_workflow_events(
     workflows = tuple(WORKFLOWS.items())
     yield "analysis_started", {"workflows": [
         {"id": name, "label": workflow.label or name} for name, workflow in workflows
-    ]}
+    ] + [{"id": "dates", "label": "Datum"}]}
     yield "title_completed", {"title": generate_title(text, runtime)}
     for name, workflow in workflows:
         yield "workflow_started", {"id": name}
@@ -521,7 +521,10 @@ def iter_workflow_events(
             raise
         logger.info("Workflow '%s' completed in %.2fs", name, perf_counter() - started)
         yield "workflow_completed", {"id": name, "results": result}
-    yield "analysis_completed", extract_dates(text, runtime)
+    yield "workflow_started", {"id": "dates"}
+    dates_result = extract_dates(text, runtime)
+    yield "workflow_completed", {"id": "dates", "results": [], **dates_result}
+    yield "analysis_completed", dates_result
 
 
 def run_workflows(
@@ -538,7 +541,7 @@ def run_workflows(
             title = data["title"]
         if event == "analysis_completed":
             dates_result = data
-        if event == "workflow_completed":
+        if event == "workflow_completed" and data["id"] != "dates":
             result = data["results"]
             results[data["id"]] = [
                 {key: value for key, value in match.items() if key != "evidence"}

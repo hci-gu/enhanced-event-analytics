@@ -54,6 +54,7 @@ export default function WorkflowRow({ workflow, showTags = false, showStatus = f
   }
 
   const completed = workflow.status === 'completed'
+  const dateWorkflow = workflow.id === 'dates'
   const header = <>
     {showStatus &&
       <span className={`workflow-symbol ${workflow.status === 'running' ? 'workflow-spinner' : ''}`} aria-hidden="true">
@@ -63,7 +64,7 @@ export default function WorkflowRow({ workflow, showTags = false, showStatus = f
     <div className="workflow-heading">
       <span className="workflow-label">{workflow.label}{!showStatus &&
         <span className="workflow-color-dot" aria-hidden="true" />}</span>
-      {showTags && completed && <span className="workflow-tags">
+      {showTags && completed && !dateWorkflow && <span className="workflow-tags">
         {workflow.results.length ? workflow.results.map((match) =>
           <span className="workflow-tag" key={match.ID}>{match.name}</span>)
           : <span className="workflow-no-matches">Inga kategorier matchade.</span>}
@@ -80,12 +81,16 @@ export default function WorkflowRow({ workflow, showTags = false, showStatus = f
         onToggleHighlights()
       }} />}
     {showStatus && <span className="workflow-state-text">{stateLabels[workflow.status]}</span>}
-    {completed && <span className="workflow-chevron" aria-hidden="true">
+    {completed && !dateWorkflow && <span className="workflow-chevron" aria-hidden="true">
       <svg viewBox="0 0 24 24" fill="none"><path d="m6 9 6 6 6-6" /></svg>
     </span>}
   </>
 
   const className = `workflow-result workflow-${workflow.status}`
+  if (dateWorkflow) return <div className={className}>
+    <div className="workflow-row-header">{header}</div>
+    {workflow.error && <p className="workflow-row-content">{workflow.error}</p>}
+  </div>
   if (!completed) return <div className={className}>
     <div className="workflow-row-header workflow-unavailable" aria-disabled="true">{header}</div>
   </div>

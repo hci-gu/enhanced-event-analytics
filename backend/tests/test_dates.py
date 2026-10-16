@@ -157,6 +157,11 @@ def test_final_workflow_api_and_persistence(loaders, pocketbase, monkeypatch, en
     final = writes(pocketbase)[-1][1]
     assert data["dates"] == final["dates"] == (None if failed else output)
     assert data["dates_error"] == final["dates_error"]
+    if endpoint.endswith("/stream"):
+        events = parse_events(response)
+        assert events[-3] == ("workflow_started", {"id": "dates"})
+        assert events[-2] == ("workflow_completed", {"id": "dates", "results": [],
+                                                     "dates": data["dates"], "dates_error": data["dates_error"]})
     assert bool(data["dates_error"]) == failed
     assert final["status"] == "Complete"
     assert final["error"] is None

@@ -6,6 +6,7 @@ import './AnalysisScreen.css'
 
 export default function AnalysisScreen({ analysis }: { analysis: AnalysisState }) {
   const headingRef = useRef<HTMLHeadingElement>(null)
+  const listRef = useRef<HTMLOListElement>(null)
   const progress = analysisProgress(analysis)
   const activeWorkflow = analysis.workflows.find((workflow) => workflow.status === 'running')
   const message = analysis.status === 'preparing' ? 'Förbereder analysen…'
@@ -14,6 +15,16 @@ export default function AnalysisScreen({ analysis }: { analysis: AnalysisState }
     : activeWorkflow ? `Analys pågår: ${activeWorkflow.label}` : 'Analys pågår'
 
   useEffect(() => { if (analysis.title) headingRef.current?.focus() }, [analysis.title])
+  useEffect(() => {
+    const list = listRef.current
+    const row = [...(list?.children ?? [])].find((item) => item instanceof HTMLElement
+      && item.dataset.workflowId === activeWorkflow?.id)
+    if (!list || !row) return
+    const bounds = list.getBoundingClientRect()
+    const target = row.getBoundingClientRect()
+    if (target.bottom > bounds.bottom) list.scrollTop += target.bottom - bounds.bottom
+    else if (target.top < bounds.top) list.scrollTop += target.top - bounds.top
+  }, [activeWorkflow?.id])
 
   return (
     <section className="analysis-screen" aria-labelledby={analysis.title ? 'analysis-title' : undefined}
@@ -24,9 +35,9 @@ export default function AnalysisScreen({ analysis }: { analysis: AnalysisState }
       </h1>
       <p className="visually-hidden" role="status" aria-live="polite">{message}</p>
       <div className="workflow-status-panel">
-        <ol className="workflow-status-list" aria-label="Analysens arbetsflöden">
+        <ol ref={listRef} className="workflow-status-list" aria-label="Analysens arbetsflöden">
           {analysis.workflows.map((workflow) => (
-            <li key={workflow.id}>
+            <li key={workflow.id} data-workflow-id={workflow.id}>
               <WorkflowRow workflow={workflow} showTags showStatus />
             </li>
           ))}

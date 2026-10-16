@@ -94,6 +94,12 @@ Successful terminal confirmation opens the evidence-linked summary only when
 Status is selected; failures stay on Status. State is in memory only: refreshing
 returns to the homepage. Mobile rows wrap their tags below the workflow label.
 New status/result colors are customizable in `src/colors.css`.
+The final `Datum` row remains queued during categorization and shows Pågår while
+date extraction runs. It counts toward workflow progress and is automatically
+scrolled into view when active. It has no category tags or disclosure. A nonfatal
+date error marks that row Misslyckades but still allows terminal success and the
+normal transition from Status to Sammanfattning. The summary shows date results
+only in the timeline, without a duplicate category card.
 
 ## Evidence-linked summary
 
@@ -103,6 +109,17 @@ Category names remain visible when result groups are collapsed. Ny analys return
 to an empty composer while preserving the completed result in the Sidor menu until
 a new submission replaces it.
 Each pane scrolls internally; mobile stacks text above results.
+When successful date extraction supplies at least one valid source/event date,
+a `Tidslinje` widget appears below the category cards in the results pane.
+Known publication/start/end dates are selectable chronological milestones with
+exact supporting quotes; missing dates are omitted and supported open ends show
+`Tills vidare`. Date-only values keep their precision and source times are not
+converted to another timezone. A separate rough duration hint is shown when present.
+The analysis reference records the browser's reception of successful completion,
+is retained in memory across navigation, and displays in the browser's local timezone.
+Its detail text is `Analystiden registreras av systemet [datum] kl. [tid].`
+Missing, malformed, empty or failed date output hides the widget without failing
+the category analysis. Refresh still clears the entire in-memory analysis.
 Verified supporting quotes are highlighted at every exact occurrence. Overlapping
 passages retain all category/workflow links and display workflow colors in bands.
 Each workflow header has an unlabeled highlight slider, on by default and visible even

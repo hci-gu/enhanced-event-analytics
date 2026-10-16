@@ -1,8 +1,12 @@
+import { parseDateResults } from './dates.ts'
+import type { DateResults } from './dates.ts'
+
 export type Match = { ID: string; name: string; evidence?: string[] }
 export type WorkflowInfo = { id: string; label: string }
 export type WorkflowState = WorkflowInfo & {
   status: 'queued' | 'running' | 'completed' | 'failed' | 'skipped'
   results: Match[]
+  error?: string
 }
 export type AnalysisState = {
   analysisId: string | null
@@ -11,17 +15,20 @@ export type AnalysisState = {
   workflows: WorkflowState[]
   completedIds: string[]
   error: string | null
+  dates: DateResults | null
+  analyzedAt: string | null
 }
 export type AnalysisEvent =
   | { type: 'analysis_started'; analysisId: string; workflows: WorkflowInfo[] }
   | { type: 'title_completed'; title: string }
   | { type: 'workflow_started'; id: string }
-  | { type: 'workflow_completed'; id: string; results: Match[] }
+  | { type: 'workflow_completed'; id: string; results: Match[]; error?: string }
   | { type: 'workflow_failed'; id: string | null; message: string; code: number }
-  | { type: 'analysis_completed' }
+  | { type: 'analysis_completed'; dates?: DateResults | null }
 
 export const initialAnalysis: AnalysisState = {
   analysisId: null, title: null, status: 'preparing', workflows: [], completedIds: [], error: null,
+  dates: null, analyzedAt: null,
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -55,13 +62,20 @@ export function parseAnalysisEvent(type: string, json: string): AnalysisEvent {
         item.evidence.some((quote) => !isText(quote)))) break
       results.push({ ID: item.ID, name: item.name, evidence: (item.evidence ?? []) as string[] })
     }
-    if (results.length === data.results.length) return { type, id: data.id, results }
+    if (results.length === data.results.length) {
+      const event: AnalysisEvent = { type, id: data.id, results }
+      if (data.id === 'dates' && isRecord(data.dates_error) && isText(data.dates_error.message)) {
+        event.error = 'Datum kunde inte extraheras. Kategoriseringsresultaten finns kvar.'
+      }
+      return event
+    }
   }
   if (type === 'workflow_failed' && (data.id === null || isText(data.id)) &&
     isText(data.message) && typeof data.code === 'number' && Number.isInteger(data.code)) {
     return { type, id: data.id, message: data.message, code: data.code }
   }
-  if (type === 'analysis_completed') return { type }
+  if (type === 'analysis_completed') return 'dates' in data
+    ? { type, dates: data.dates_error ? null : parseDateResults(data.dates) } : { type }
   throw new Error('Servern skickade ett ogiltigt analysmeddelande.')
 }
 
@@ -95,8 +109,9 @@ export function advanceAnalysis(state: AnalysisState, event: AnalysisEvent): Ana
     return { ...state, title: event.title }
   }
   if (event.type === 'analysis_completed') {
-    if (state.workflows.some((workflow) => workflow.status !== 'completed')) return invalid()
-    return { ...state, status: 'completed' }
+    if (state.workflows.some((workflow) => workflow.status !== 'completed'
+      && !(workflow.id === 'dates' && workflow.status === 'failed' && workflow.error))) return invalid()
+    return { ...state, status: 'completed', dates: event.dates ?? null, analyzedAt: new Date().toISOString() }
   }
   const workflow = state.workflows.find((item) => item.id === event.id)
   if (!workflow) return invalid()
@@ -108,7 +123,10 @@ export function advanceAnalysis(state: AnalysisState, event: AnalysisEvent): Ana
   if (workflow.status !== 'running') return invalid()
   return {
     ...state,
-    workflows: state.workflows.map((item) => item.id === event.id ? { ...item, status: 'completed', results: event.results } : item),
+    workflows: state.workflows.map((item) => item.id === event.id ? {
+      ...item, status: event.error ? 'failed' : 'completed', results: event.results,
+      ...(event.error ? { error: event.error } : {}),
+    } : item),
     completedIds: [...state.completedIds, event.id],
   }
 }

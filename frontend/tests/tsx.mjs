@@ -12,9 +12,11 @@ export async function componentUrl(name, dependencies = {}) {
     './analysis': new URL('../src/analysis.ts', import.meta.url).href,
     './navigation': new URL('../src/navigation.ts', import.meta.url).href,
     './evidence': new URL('../src/evidence.ts', import.meta.url).href,
+    './dates': new URL('../src/dates.ts', import.meta.url).href,
     ...dependencies,
   }
   if (source.includes("from './WorkflowRow'")) imports['./WorkflowRow'] = await componentUrl('WorkflowRow')
+  if (source.includes("from './DateTimeline'")) imports['./DateTimeline'] = await componentUrl('DateTimeline')
   for (const [specifier, resolved] of Object.entries(imports)) {
     outputText = outputText.replaceAll(`'${specifier}'`, `'${resolved}'`).replaceAll(`"${specifier}"`, `"${resolved}"`)
   }

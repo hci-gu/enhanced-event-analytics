@@ -471,7 +471,12 @@ there is one model call per step, not a separate model per task.
 ### Date extraction
 
 `extract_dates(text, runtime)` runs after all categories and before completion,
-outside the category catalog/progress. It uses the shared inference engine and
+outside the category registry. The status catalog appends `dates` (label `Datum`),
+with `workflow_started` before extraction and `workflow_completed` afterward.
+The completion event carries an empty `results` list plus `dates` and `dates_error`;
+these remain outside category predictions. Date errors complete this step with
+an error payload instead of sending the terminal `workflow_failed` event.
+It uses the shared inference engine and
 lock, an independent Swedish system prompt, and up to 1024 output tokens.
 `ANALYSIS_TIMEZONE="Europe/Stockholm"` configures the IANA timezone; invalid values
 prevent startup before model loading. The `tzdata` dependency supplies timezone
@@ -516,8 +521,10 @@ Malformed output retries using `RETRY_LIMIT`; invalid individual dates/hints bec
 null without dropping other valid values. Inference failure or exhausted retries
 returns `dates: null` and `dates_error: {"code": ..., "message": ...}` while analysis
 and category results remain successful. No information is a successful extraction
-with the empty object shown above. No frontend rendering is added; the existing
-stream consumer accepts and ignores these additional completion fields.
+with the empty object shown above. The frontend consumes valid dates from stream
+completion and renders a selectable timeline below the summary's category cards.
+It hides the widget for empty/invalid/failed extraction; the analysis reference is
+the browser-recorded completion reception time, separate from source dates.
 
 Category definitions are validated and loaded once during startup before model
 loading. Missing files, invalid JSON, blank/non-string fields, or duplicate IDs
@@ -560,7 +567,8 @@ Each frame is `event: <name>` followed by `data: <JSON>` and a blank line:
 | `workflow_failed` | `{ "id": "risks", "message": "...", "code": 502 }` |
 | `analysis_completed` | `{ "embedding": { ... }, "embedding_error": null, "dates": { ... }, "dates_error": null }` (each optional result can independently be null with a structured error) |
 
-The catalog follows registry order; labels default to the registry key when absent.
+The catalog follows category registry order and appends `dates` (`Datum`) last;
+category labels default to the registry key when absent.
 After `analysis_started`, title generation runs before any category workflow and
 emits `title_completed`. It is excluded from the catalog and category progress.
 The frontend reserves an empty heading area initially and renders the title

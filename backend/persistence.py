@@ -106,7 +106,11 @@ class AnalysisPersistence:
                 self.data["title"] = data["title"]
                 self._save()
             elif event == "workflow_completed":
-                self.data["predictions"][data["id"]] = data["results"]
+                if data["id"] == "dates":
+                    self.data["dates"] = data.get("dates")
+                    self.data["dates_error"] = data.get("dates_error")
+                else:
+                    self.data["predictions"][data["id"]] = data["results"]
                 self._save()
             elif event == "analysis_completed":
                 self.data["dates"] = data.get("dates")

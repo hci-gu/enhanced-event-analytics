@@ -28,6 +28,8 @@ def parse_events(response):
 def test_iterator_delivers_progress_before_running_next_workflow(monkeypatch, no_date_inference):
     first = Mock(return_value=[])
     second = Mock(return_value=[{"ID": "a", "name": "Match"}])
+    dates = Mock(return_value={"dates": None, "dates_error": None})
+    monkeypatch.setattr(workflows, "extract_dates", dates)
     monkeypatch.setattr(workflows, "WORKFLOWS", {
         "first": workflows.Workflow(first, label="Första"),
         "second": workflows.Workflow(second, label="Andra"),
@@ -35,6 +37,7 @@ def test_iterator_delivers_progress_before_running_next_workflow(monkeypatch, no
     iterator = workflows.iter_workflow_events("Text", object(), {"first": (), "second": ()})
     assert next(iterator) == ("analysis_started", {"workflows": [
         {"id": "first", "label": "Första"}, {"id": "second", "label": "Andra"},
+        {"id": "dates", "label": "Datum"},
     ]})
     first.assert_not_called()
     assert next(iterator) == ("title_completed", {"title": "Testhändelse"})
@@ -47,6 +50,10 @@ def test_iterator_delivers_progress_before_running_next_workflow(monkeypatch, no
     assert next(iterator) == ("workflow_started", {"id": "second"})
     second.assert_not_called()
     assert next(iterator)[0] == "workflow_completed"
+    assert next(iterator) == ("workflow_started", {"id": "dates"})
+    dates.assert_not_called()
+    assert next(iterator) == ("workflow_completed", {"id": "dates", "results": [], "dates": None, "dates_error": None})
+    dates.assert_called_once()
     assert next(iterator) == ("analysis_completed", {"dates": None, "dates_error": None})
     with pytest.raises(StopIteration):
         next(iterator)
@@ -69,11 +76,12 @@ def test_stream_endpoint_contract_and_existing_json_endpoint(loaders, monkeypatc
         {"id": "service", "label": "Verksamheter"},
         {"id": "properties", "label": "Egenskaper"},
         {"id": "protection", "label": "Skyddsvärden"},
+        {"id": "dates", "label": "Datum"},
     ]})
     assert events[1] == ("title_completed", {"title": "Testhändelse"})
     assert [name for name, _ in events] == ["analysis_started", "title_completed"] + [
         "workflow_started", "workflow_completed",
-    ] * 5 + ["analysis_completed"]
+    ] * 6 + ["analysis_completed"]
     assert events[-1] == ("analysis_completed", {"embedding": EMBEDDING, "embedding_error": None,
                                                "dates": None, "dates_error": None})
     assert ordinary.json() == {"status": "ok", "title": "Testhändelse", "embedding": EMBEDDING,

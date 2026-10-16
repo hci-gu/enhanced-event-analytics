@@ -141,6 +141,10 @@ filesystem snapshots; see [storage setup](backend/README.md#lancedb-vector-stora
 
 `workflows.py` defines independent workflow functions and the `WORKFLOWS` registry.
 After the five registered category workflows, a fixed `extract_dates` step uses
+the final `Datum` status row and standard workflow start/completion events, while
+remaining outside category predictions. It counts toward status progress; the
+active row scrolls into view. Date errors mark that row failed without preventing
+successful terminal completion and summary navigation. The step uses
 the same inference engine and lock with a separate Swedish prompt (1024 output
 tokens). It extracts original publication and one primary event interval, preserving
 date-only/minute precision and verified exact source quotes. Relative event dates
@@ -152,7 +156,12 @@ as `Datumet är YYYY:MM:DD HH:MM`, using startup-validated `ANALYSIS_TIMEZONE`
 use `RETRY_LIMIT`; extraction errors are nonfatal. Both endpoints return top-level
 `dates` and `dates_error` (in stream completion for SSE). They are stored in optional
 PocketBase Analysis JSON fields separately from category predictions; existing
-records need no backfill. The frontend currently ignores these completion fields.
+records need no backfill. The frontend retains valid date results from completion
+and displays a selectable `Tidslinje` below summary category cards, with source
+quotes and a separate rough duration hint. Empty/invalid/failed date extraction
+hides it. The analysis reference is recorded once on successful stream completion
+in the browser and retained across navigation; source dates preserve their original
+calendar/time precision without timezone conversion.
 Format/evidence validation does not establish real-model interpretation quality.
 A fixed `generate_title` step outside the registry runs before categorization,
 using a separate Swedish prompt and the shared model. It generates a factual

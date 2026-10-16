@@ -11,7 +11,12 @@ const require = createRequire(import.meta.url)
 const { chromium } = require(process.argv[2] || 'playwright')
 const directory = resolve('dist')
 const screenshots = await mkdtemp(join(tmpdir(), 'event-analytics-ui-'))
-const sourceText = `${'Bakgrund till händelsen.\n'.repeat(70)}Vatten stiger och påverkar vägarna.\n${'Fortsatt rapportering.\n'.repeat(70)}`.trim()
+const sourceText = `${'Bakgrund till händelsen.\n'.repeat(70)}Vatten stiger och påverkar vägarna.\n${'Fortsatt rapportering.\n'.repeat(70)} Publicerad igår 06:05. Branden startade. Branden släcktes.`.trim()
+const dates = {
+  published_at: '2026-10-15T06:05', event_start: '2026-10-14T22:35', event_end: '2026-10-15T00:30',
+  end_status: 'dated', duration_hint: '~2H',
+  evidence: { published_at: ['Publicerad igår 06:05'], event_start: ['Branden startade'], event_end: ['Branden släcktes'] },
+}
 const workflows = [
   { id: 'risks', label: 'Riskområden' }, { id: 'reach', label: 'Räckvidd' },
   { id: 'service', label: 'Verksamheter' },
@@ -36,7 +41,7 @@ const server = createServer(async (request, res) => {
     requests++
     response = res
     res.writeHead(200, { 'Content-Type': 'text/event-stream' })
-    send('analysis_started', { analysis_id: `mock-${requests}`, workflows })
+    send('analysis_started', { analysis_id: `mock-${requests}`, workflows: [...workflows, { id: 'dates', label: 'Datum' }] })
     return
   }
   try {
@@ -85,7 +90,7 @@ try {
     send('workflow_started', { id: 'reach' })
     await page.locator('.workflow-spinner').waitFor()
     assert.equal(await page.getByLabel('Sök händelser', { exact: true }).count(), 1)
-    assert.equal(await page.getByRole('progressbar').getAttribute('aria-valuenow'), '11')
+    assert.equal(await page.getByRole('progressbar').getAttribute('aria-valuenow'), '10')
     assert.equal(await page.locator('.workflow-tag').count(), 2)
     const after = await page.locator('.workflow-status-panel').boundingBox()
     assert.equal(before.y, after.y)
@@ -104,7 +109,9 @@ try {
       send('workflow_completed', { id: item.id, results: item.id === 'reach'
         ? [{ ID: 'local', name: 'Lokalt', evidence: ['stiger'] }] : [] })
     }
-    send('analysis_completed', {})
+    send('workflow_started', { id: 'dates' })
+    send('workflow_completed', { id: 'dates', results: [], dates, dates_error: null })
+    send('analysis_completed', { dates, dates_error: null })
     response.end()
     await page.getByRole('button', { name: 'Analysera', exact: true }).waitFor()
     await menu.click()
@@ -116,6 +123,16 @@ try {
     await menu.click()
     await page.getByRole('button', { name: 'Sammanfattning', exact: true }).click()
     await page.locator('.summary-screen').waitFor()
+    const timeline = page.getByRole('region', { name: 'Tidslinje', exact: true })
+    await timeline.scrollIntoViewIfNeeded()
+    assert.equal(await timeline.locator('.date-timeline-point').count(), 4)
+    assert.equal(await timeline.locator('h2').textContent(), 'Tidslinje')
+    await timeline.getByRole('button', { name: /Händelseslut/ }).click()
+    assert.equal(await timeline.locator('blockquote').textContent(), '“Branden släcktes”')
+    await timeline.getByRole('button', { name: /Analys · nu/ }).focus()
+    await page.keyboard.press('Enter')
+    assert.match(await timeline.locator('.date-timeline-evidence').textContent(), /Analystiden registreras av systemet \d+ \S+ \d{4} kl\. \d{2}:\d{2}\./)
+    await page.screenshot({ path: join(screenshots, `timeline-${viewport.width}.png`) })
     assert.equal(await page.getByLabel('Sök händelser', { exact: true }).count(), 1)
     const mark = page.locator('mark').first()
     const result = page.locator('.summary-results .workflow-result').first()
@@ -189,10 +206,22 @@ try {
       send('workflow_started', { id: item.id })
       send('workflow_completed', { id: item.id, results: [] })
     }
-    send('analysis_completed', {})
+    send('workflow_started', { id: 'dates' })
+    await page.locator('.workflow-running .workflow-label').filter({ hasText: 'Datum' }).waitFor()
+    await page.waitForFunction(() => {
+      const list = document.querySelector('.workflow-status-list').getBoundingClientRect()
+      const row = document.querySelector('[data-workflow-id="dates"]').getBoundingClientRect()
+      return row.top >= list.top - 1 && row.bottom <= list.bottom + 1
+    })
+    assert.equal(await page.locator('.summary-screen').count(), 0)
+    assert.equal(await page.getByRole('progressbar').getAttribute('aria-valuenow'), '90')
+    const datesError = { code: 502, message: 'Date extraction failed' }
+    send('workflow_completed', { id: 'dates', results: [], dates: null, dates_error: datesError })
+    send('analysis_completed', { dates: null, dates_error: datesError })
     response.end()
     await page.locator('.summary-screen').waitFor()
     assert.equal(await page.getByRole('heading', { name: 'En ny händelse', exact: true }).count(), 1)
+    assert.equal(await page.locator('.date-timeline').count(), 0)
     await page.getByRole('button', { name: 'Ny analys', exact: true }).click()
     assert.equal(await page.getByLabel('Händelsetext', { exact: true }).inputValue(), '')
     assert.equal(await page.getByLabel('Händelsetext', { exact: true }).evaluate((element) => element === document.activeElement), true)

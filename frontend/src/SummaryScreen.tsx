@@ -4,6 +4,7 @@ import type { AnalysisState } from './analysis'
 import { activeSelection, evidenceSegments, highlightBands, initialInteraction, interact, workflowColor } from './evidence'
 import type { Selection } from './evidence'
 import WorkflowRow from './WorkflowRow'
+import DateTimeline from './DateTimeline'
 import './AnalysisScreen.css'
 import './SummaryScreen.css'
 
@@ -83,7 +84,7 @@ export default function SummaryScreen({ analysis, text, onNewAnalysis }: {
         <section className="summary-pane" aria-labelledby="results-label">
           <h2 id="results-label" className="pane-label">Analysresultat</h2>
           <section className="summary-results" aria-label="Arbetsflöden och kategorier" tabIndex={0}>
-            {analysis.workflows.map((workflow) => {
+            {analysis.workflows.filter((workflow) => workflow.id !== 'dates').map((workflow) => {
               const selected = selection?.workflowIds.includes(workflow.id)
               return <WorkflowRow key={workflow.id} workflow={workflow} selected={selected}
                 highlightsEnabled={!hiddenWorkflows.includes(workflow.id)}
@@ -97,6 +98,8 @@ export default function SummaryScreen({ analysis, text, onNewAnalysis }: {
                 summaryEvents={events({ workflowIds: [workflow.id] }, false)}
                 style={{ '--workflow-evidence-color': workflowColor(workflow.id) } as CSSProperties} />
             })}
+            {analysis.dates && analysis.analyzedAt && <DateTimeline dates={analysis.dates}
+              analyzedAt={analysis.analyzedAt} text={text} />}
           </section>
         </section>
       </div>

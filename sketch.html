@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Tidslinje — fem skisser</title>
+  <style>
+    :root { --paper:#f4efe6; --card:#fffcf5; --ink:#342e29; --muted:#706d63; --rule:#ddd7ca; --accent:#a3432c; --soft:#f0dfd5; --green:#526a56; --sans:system-ui,-apple-system,'Segoe UI',sans-serif; --serif:Georgia,'Times New Roman',serif; }
+    * { box-sizing:border-box; }
+    html { scroll-behavior:smooth; scroll-padding-top:90px; }
+    body { margin:0; color:var(--ink); background:var(--paper); font:14px/1.5 var(--sans); }
+    button,a,summary { -webkit-tap-highlight-color:transparent; }
+    button { font:inherit; cursor:pointer; }
+    a { color:inherit; text-underline-offset:4px; }
+    :focus-visible { outline:2px solid var(--accent); outline-offset:5px; }
+    h1,h2,h3,p { margin:0; }
+    h1,h2,h3 { font-family:var(--serif); font-weight:400; }
+    header,main,footer { max-width:1100px; margin:auto; padding-left:36px; padding-right:36px; }
+    header { padding-top:44px; padding-bottom:28px; }
+    .eyebrow { color:var(--accent); text-transform:uppercase; letter-spacing:.16em; font-size:10px; font-weight:650; }
+    .intro-row { display:flex; justify-content:space-between; align-items:flex-end; gap:30px; margin-top:12px; }
+    h1 { font-size:40px; line-height:1.15; letter-spacing:-.035em; }
+    .intro { color:var(--muted); max-width:640px; margin-top:12px; line-height:1.7; }
+    .sample-stamp { flex:none; text-align:right; font-size:11px; color:var(--muted); }
+    .sample-stamp strong { display:block; font-weight:500; color:var(--ink); }
+    nav { position:sticky; top:0; z-index:5; background:var(--paper); border-block:1px solid var(--rule); }
+    .nav-inner { max-width:1100px; margin:auto; padding:12px 36px; display:flex; align-items:center; justify-content:space-between; gap:20px; }
+    .nav-links { display:flex; gap:8px; flex-wrap:wrap; }
+    .nav-links a { text-decoration:none; padding:6px 11px; border:1px solid transparent; font-size:12px; }
+    .nav-links a:hover { border-color:var(--accent); color:var(--accent); }
+    .width-toggle { border:1px solid var(--rule); background:var(--card); padding:7px 12px; font-size:11px; white-space:nowrap; }
+    .width-toggle[aria-pressed=true] { color:var(--accent); border-color:var(--accent); }
+    main { padding-top:38px; }
+    .variant { margin-bottom:48px; }
+    .variant-heading { display:flex; gap:16px; align-items:flex-start; margin-bottom:17px; }
+    .index { font:italic 28px var(--serif); color:var(--accent); line-height:1; min-width:30px; padding-top:3px; }
+    h2 { font-size:24px; line-height:1.2; }
+    .description { color:var(--muted); font-size:12px; margin-top:6px; }
+    .preview { border:1px solid var(--rule); background:var(--card); box-shadow:4px 4px 0 var(--rule); width:100%; margin-inline:auto; }
+    body.narrow .preview { max-width:600px; }
+    .category-context { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:12px 24px; background:#f8f5ee; border-bottom:1px solid var(--rule); font-size:10px; color:var(--muted); }
+    .category-context .label { letter-spacing:.1em; text-transform:uppercase; margin-right:auto; font-weight:600; }
+    .category-context .category { color:var(--ink); border-left:2px solid #bfad96; padding-left:7px; }
+    .widget { padding:24px 28px 20px; }
+    .widget-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    .widget-heading h3 { font-size:23px; line-height:1.2; }
+    .quiet { color:var(--muted); font-size:11px; }
+    .status { color:var(--green); display:flex; align-items:center; gap:6px; font-size:11px; }
+    .status::before { content:''; width:6px; height:6px; border-radius:50%; background:currentColor; }
+    .note { font-size:10px; color:var(--muted); }
+    .widget-foot { display:flex; gap:12px; justify-content:space-between; align-items:center; margin-top:16px; padding-top:12px; border-top:1px solid var(--rule); }
+    .hint { font-size:11px; color:var(--muted); }
+    .hint strong { color:var(--ink); font-weight:600; }
+    .time { font-variant-numeric:tabular-nums; }
+    .milestones { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); position:relative; list-style:none; padding:0; margin:28px 0 0; }
+    .milestones::before { content:''; position:absolute; height:1px; background:var(--rule); top:9px; left:9px; right:9px; }
+    .milestone { position:relative; padding-top:30px; }
+    .milestone::before { content:''; position:absolute; width:9px; height:9px; border:1px solid var(--ink); border-radius:50%; background:var(--card); top:5px; left:0; }
+    .milestone:first-child::before,.milestone:nth-child(2)::before { background:var(--accent); border-color:var(--accent); }
+    .milestone:last-child { text-align:right; }
+    .milestone:last-child::before { left:auto; right:0; width:11px; height:11px; top:4px; background:var(--ink); box-shadow:0 0 0 4px var(--card),0 0 0 5px var(--rule); }
+    .milestone .event-name { display:block; font-size:11px; color:var(--muted); margin-bottom:5px; }
+    .milestone strong { font-size:13px; font-weight:550; }
+    .milestone small { font-size:11px; color:var(--muted); display:block; margin-top:2px; }
+    .metric { height:80px; position:relative; margin:15px 0 8px; }
+    .metric-axis { height:1px; position:absolute; top:40px; left:6%; right:6%; background:var(--rule); }
+    .metric-active { position:absolute; left:6%; width:4.4%; height:5px; background:var(--accent); top:38px; }
+    .metric-mark { position:absolute; left:var(--pos); top:0; transform:translateX(-50%); width:25px; text-align:center; }
+    .metric-mark span { display:inline-grid; place-items:center; width:22px; height:22px; border:1px solid var(--rule); border-radius:50%; font-size:10px; background:var(--card); }
+    .metric-mark::after { content:''; width:1px; height:18px; position:absolute; left:50%; top:22px; background:var(--rule); }
+    .metric-mark::before { content:''; width:5px; height:5px; border-radius:50%; background:var(--accent); position:absolute; left:calc(50% - 2px); top:38px; }
+    .metric-mark.below { top:40px; }
+    .metric-mark.below::after { top:0; }
+    .metric-mark.below::before { top:-2px; }
+    .metric-mark.below span { margin-top:20px; }
+    .metric-mark.now::before { background:var(--ink); width:7px; height:7px; left:calc(50% - 3px); top:37px; }
+    .metric-mark.now span { border-color:var(--ink); background:var(--ink); color:var(--card); }
+    .key-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:18px; margin:0; padding:0; list-style:none; }
+    .key-grid .key-label { font-size:10px; color:var(--muted); display:block; }
+    .key-grid .key-label b { color:var(--accent); font-weight:600; margin-right:5px; }
+    .key-grid strong { display:block; font-size:12px; margin-top:5px; font-weight:550; }
+    .key-grid small { font-size:10px; color:var(--muted); }
+    .interval-summary { display:flex; align-items:baseline; justify-content:space-between; gap:20px; margin-top:20px; }
+    .interval-summary .duration { font:32px/1 var(--serif); }
+    .interval-summary .duration span { font:11px var(--sans); color:var(--muted); margin-left:8px; }
+    .band-timeline { position:relative; height:121px; margin-top:22px; }
+    .band-axis { position:absolute; top:52px; left:8%; right:8%; border-top:1px solid var(--rule); }
+    .event-band { position:absolute; top:46px; height:13px; left:8%; width:27%; background:var(--soft); border:1px solid var(--accent); border-radius:1px; }
+    .band-point { position:absolute; top:0; left:var(--pos); transform:translateX(-50%); text-align:center; width:110px; font-size:11px; }
+    .band-point strong { font-size:12px; font-weight:550; display:block; }
+    .band-point .name { display:block; font-size:10px; color:var(--muted); margin-bottom:3px; }
+    .band-point::after { content:''; width:1px; height:13px; position:absolute; left:50%; top:39px; background:var(--accent); }
+    .band-point::before { content:''; height:7px; width:7px; position:absolute; top:49px; left:calc(50% - 3px); border:1px solid var(--accent); background:var(--card); border-radius:50%; }
+    .band-point.bottom { top:52px; padding-top:24px; }
+    .band-point.bottom::after { top:0; height:16px; background:var(--rule); }
+    .band-point.bottom::before { top:-3px; z-index:1; border-color:var(--muted); }
+    .band-point.now::before { background:var(--ink); border-color:var(--ink); }
+    .band-point.now::after { background:var(--ink); }
+    .break-grid { display:grid; grid-template-columns:minmax(0,2.1fr) 42px minmax(0,.9fr); align-items:center; margin-top:26px; }
+    .break-left,.break-right { position:relative; }
+    .break-left .milestones { grid-template-columns:repeat(3,minmax(0,1fr)); margin:0; }
+    .break-left .milestone:last-child { text-align:left; }
+    .break-left .milestone:last-child::before { left:0; right:auto; width:9px; height:9px; top:5px; box-shadow:none; border:1px solid var(--ink); background:var(--card); }
+    .break-left .milestones::before { right:calc(33.333% - 1px); }
+    .break-symbol { position:relative; align-self:start; text-align:center; color:var(--muted); line-height:18px; background:var(--card); font-size:20px; letter-spacing:-3px; }
+    .break-right::before { content:''; position:absolute; height:1px; top:9px; left:-16px; right:8px; background:var(--rule); }
+    .break-right .milestone { text-align:right; }
+    .gap-label { color:var(--muted); text-align:right; font-size:10px; margin-top:14px; }
+    .evidence-widget .milestones { margin-top:23px; }
+    .evidence-widget .milestone { padding:0; }
+    .evidence-widget .milestone::before { display:none; }
+    .point-button { display:block; position:relative; width:100%; border:0; background:transparent; padding:30px 5px 9px 0; text-align:left; color:var(--ink); }
+    .point-button::before { content:''; position:absolute; width:9px; height:9px; border:1px solid var(--muted); border-radius:50%; top:5px; left:0; background:var(--card); }
+    .point-button[aria-pressed=true]::before { background:var(--accent); border-color:var(--accent); box-shadow:0 0 0 4px var(--card),0 0 0 5px var(--accent); }
+    .point-button[aria-pressed=true] .event-name { color:var(--accent); }
+    .point-button:hover .event-name { text-decoration:underline; text-underline-offset:3px; }
+    .milestone:last-child .point-button { text-align:right; padding-right:0; }
+    .milestone:last-child .point-button::before { left:auto; right:0; background:var(--ink); border-color:var(--ink); }
+    .quote-panel { min-height:90px; padding:14px 16px; margin-top:16px; background:#f6f1e8; border-left:2px solid var(--accent); }
+    .quote-panel .quote-label { font-size:9px; text-transform:uppercase; letter-spacing:.12em; color:var(--muted); }
+    .quote-panel blockquote { font:17px/1.5 var(--serif); margin:5px 0 0; }
+    details { margin-top:18px; border-top:1px solid var(--rule); padding-top:12px; }
+    summary { font-size:11px; color:var(--muted); cursor:pointer; width:fit-content; }
+    .source-quotes { display:grid; grid-template-columns:repeat(3,1fr); gap:20px; margin-top:14px; }
+    .source-quotes p { font:14px/1.5 var(--serif); }
+    .source-quotes span { display:block; font:10px var(--sans); color:var(--muted); margin-bottom:5px; }
+    footer { color:var(--muted); font-size:11px; padding-top:4px; padding-bottom:38px; }
+    footer p { max-width:760px; }
+    @media(max-width:700px) {
+      header,main,footer { padding-inline:20px; }
+      header { padding-top:28px; }
+      h1 { font-size:32px; }
+      .intro-row { display:block; }
+      .sample-stamp { text-align:left; margin-top:18px; }
+      .nav-inner { padding:10px 16px; align-items:flex-start; gap:8px; }
+      .nav-links { gap:0; }
+      .nav-links a { padding:6px 7px; font-size:11px; }
+      .width-toggle { white-space:normal; max-width:100px; font-size:10px; }
+      .widget { padding:21px 18px 17px; }
+      .category-context { padding:10px 18px; }
+      .category-context .label { width:100%; margin:0 0 2px; }
+      .milestone strong { font-size:11px; }
+      .milestone small,.milestone .event-name { font-size:10px; }
+      .key-grid { gap:12px; grid-template-columns:repeat(2,1fr); }
+      .widget-foot { flex-wrap:wrap; gap:6px; }
+      .band-point { width:78px; }
+      .band-point strong { font-size:11px; }
+      .band-point .name { font-size:9px; }
+      .interval-summary .duration { font-size:28px; }
+      .break-grid { grid-template-columns:minmax(0,2.7fr) 20px minmax(0,1fr); }
+      .break-grid .event-name { font-size:9px; }
+      .break-grid .milestone strong { font-size:10px; }
+      .break-grid .milestone small { font-size:9px; }
+      .source-quotes { grid-template-columns:1fr; gap:14px; }
+    }
+    @media(prefers-reduced-motion:reduce) { html { scroll-behavior:auto; } }
+  </style>
+</head>
+<body>
+  <header>
+    <p class="eyebrow">Förstärkt analysförmåga / Designskisser</p>
+    <div class="intro-row">
+      <div><h1>En händelse. Fyra tidpunkter.</h1><p class="intro">Fem sätt att visa tidslinjen direkt under kategoriseringsresultaten. Samma brand, samma datum — olika sätt att läsa förloppet.</p></div>
+      <p class="sample-stamp">Exempel från datumextraktionen<strong>14–16 oktober 2026</strong></p>
+    </div>
+  </header>
+  <nav aria-label="Gå till en variant">
+    <div class="nav-inner">
+      <div class="nav-links"><a href="#variant-1">01 Hållpunkter</a><a href="#variant-2">02 Tidsskala</a><a href="#variant-3">03 Händelseband</a><a href="#variant-4">04 Tidsbrott</a><a href="#variant-5">05 Textstöd</a></div>
+      <button class="width-toggle" type="button" aria-pressed="false" id="width-toggle">Visa i smal panel</button>
+    </div>
+  </nav>
+  <main>
+    <section class="variant" id="variant-1" aria-labelledby="heading-1">
+      <div class="variant-heading"><span class="index">01</span><div><h2 id="heading-1">Fyra enkla hållpunkter</h2><p class="description">Lika mycket plats för varje tidpunkt. Lätt att läsa även i en smal resultatkolumn.</p></div></div>
+      <div class="preview">
+        <div class="category-context"><span class="label">Kategoriseringsresultat</span><span class="category">Riskområden</span><span class="category">Verksamheter</span><span class="category">Skyddsvärden</span></div>
+        <section class="widget" aria-label="Variant 1: händelsens tidslinje">
+          <div class="widget-heading"><h3>Händelsens tidslinje</h3><span class="status">Avslutad enligt texten</span></div>
+          <ol class="milestones">
+            <li class="milestone"><span class="event-name">Händelsestart</span><strong class="time">14 okt · 22:35</strong><small>Onsdag</small></li>
+            <li class="milestone"><span class="event-name">Händelseslut</span><strong class="time">15 okt · 00:30</strong><small>Torsdag</small></li>
+            <li class="milestone"><span class="event-name">Källan publicerad</span><strong class="time">15 okt · 06:05</strong><small>Torsdag</small></li>
+            <li class="milestone"><span class="event-name">Analys · nu</span><strong class="time">16 okt · 12:56</strong><small>Fredag</small></li>
+          </ol>
+          <div class="widget-foot"><span class="hint">Grov varaktighet: <strong>~2 timmar</strong></span><span class="note">Kronologisk ordning · ej proportionell skala</span></div>
+        </section>
+      </div>
+    </section>
+
+    <section class="variant" id="variant-2" aria-labelledby="heading-2">
+      <div class="variant-heading"><span class="index">02</span><div><h2 id="heading-2">Avstånd som faktiskt betyder tid</h2><p class="description">En proportionell axel visar hur kort händelsen är jämfört med tiden fram till analysen.</p></div></div>
+      <div class="preview">
+        <div class="category-context"><span class="label">Kategoriseringsresultat</span><span class="category">Riskområden</span><span class="category">Verksamheter</span><span class="category">Skyddsvärden</span></div>
+        <section class="widget" aria-label="Variant 2: proportionell tidslinje">
+          <div class="widget-heading"><h3>Tidsperspektiv</h3><span class="quiet">14–16 oktober</span></div>
+          <div class="metric" role="img" aria-label="Proportionell tidslinje: händelsestart 14 oktober 22:35, slut 15 oktober 00:30, publicerad 15 oktober 06:05, analys 16 oktober 12:56. Händelsen varade 1 timme och 55 minuter.">
+            <div class="metric-axis"></div><div class="metric-active"></div>
+            <div class="metric-mark" data-time="2026-10-14T22:35" style="--pos:6%"><span>1</span></div>
+            <div class="metric-mark below" data-time="2026-10-15T00:30" style="--pos:10.4%"><span>2</span></div>
+            <div class="metric-mark" data-time="2026-10-15T06:05" style="--pos:23.2%"><span>3</span></div>
+            <div class="metric-mark now" data-time="2026-10-16T12:56" style="--pos:94%"><span>4</span></div>
+          </div>
+          <ol class="key-grid">
+            <li><span class="key-label"><b>1</b>Händelsestart</span><strong class="time">14 okt · 22:35</strong></li>
+            <li><span class="key-label"><b>2</b>Händelseslut</span><strong class="time">15 okt · 00:30</strong></li>
+            <li><span class="key-label"><b>3</b>Källan publicerad</span><strong class="time">15 okt · 06:05</strong></li>
+            <li><span class="key-label"><b>4</b>Analys · nu</span><strong class="time">16 okt · 12:56</strong></li>
+          </ol>
+          <div class="widget-foot"><span class="hint">Händelseintervall: <strong>1 h 55 min</strong><span aria-hidden="true"> · </span>Grov uppskattning: ~2 h</span><span class="note">Proportionell tidsskala</span></div>
+        </section>
+      </div>
+    </section>
+
+    <section class="variant" id="variant-3" aria-labelledby="heading-3">
+      <div class="variant-heading"><span class="index">03</span><div><h2 id="heading-3">Händelsen som ett sammanhängande band</h2><p class="description">Lyfter fram start och slut som ett intervall, med publicering och analys som referenspunkter.</p></div></div>
+      <div class="preview">
+        <div class="category-context"><span class="label">Kategoriseringsresultat</span><span class="category">Riskområden</span><span class="category">Verksamheter</span><span class="category">Skyddsvärden</span></div>
+        <section class="widget" aria-label="Variant 3: händelseintervall">
+          <div class="widget-heading"><h3>Händelseförlopp</h3><span class="status">Avslutad enligt texten</span></div>
+          <div class="interval-summary"><p class="duration">1 h 55 min<span>mellan start och slut</span></p><span class="quiet">Grov uppskattning: ~2 h</span></div>
+          <div class="band-timeline">
+            <div class="band-axis"></div><div class="event-band" aria-hidden="true"></div>
+            <div class="band-point" style="--pos:8%"><span class="name">Händelsestart</span><strong class="time">14 okt · 22:35</strong></div>
+            <div class="band-point" style="--pos:35%"><span class="name">Händelseslut</span><strong class="time">15 okt · 00:30</strong></div>
+            <div class="band-point bottom" style="--pos:62%"><span class="name">Källan publicerad</span><strong class="time">15 okt · 06:05</strong></div>
+            <div class="band-point now" style="--pos:92%"><span class="name">Analys · nu</span><strong class="time">16 okt · 12:56</strong></div>
+          </div>
+          <p class="note">Bandet markerar händelseintervallet. Tidpunkterna är inte proportionellt placerade.</p>
+        </section>
+      </div>
+    </section>
+
+    <section class="variant" id="variant-4" aria-labelledby="heading-4">
+      <div class="variant-heading"><span class="index">04</span><div><h2 id="heading-4">Förloppet nära, analystiden i kanten</h2><p class="description">Ett tydligt tidsbrott ger nattens händelse mer utrymme utan att tappa bort när analysen gjordes.</p></div></div>
+      <div class="preview">
+        <div class="category-context"><span class="label">Kategoriseringsresultat</span><span class="category">Riskområden</span><span class="category">Verksamheter</span><span class="category">Skyddsvärden</span></div>
+        <section class="widget" aria-label="Variant 4: tidslinje med markerat tidsbrott">
+          <div class="widget-heading"><h3>Från händelse till analys</h3><span class="quiet">14–16 oktober</span></div>
+          <div class="break-grid">
+            <div class="break-left"><ol class="milestones">
+              <li class="milestone"><span class="event-name">Händelsestart</span><strong class="time">14 okt · 22:35</strong><small>Onsdag</small></li>
+              <li class="milestone"><span class="event-name">Händelseslut</span><strong class="time">15 okt · 00:30</strong><small>Torsdag</small></li>
+              <li class="milestone"><span class="event-name">Publicerad</span><strong class="time">15 okt · 06:05</strong><small>Torsdag</small></li>
+            </ol></div>
+            <div class="break-symbol" aria-label="Tidsbrott">//</div>
+            <div class="break-right"><div class="milestone"><span class="event-name">Analys · nu</span><strong class="time">16 okt · 12:56</strong><small>Fredag</small></div></div>
+          </div>
+          <p class="gap-label">30 h 51 min från publicering till analys</p>
+          <div class="widget-foot"><span class="hint">Grov varaktighet: <strong>~2 timmar</strong></span><span class="note">Tidsbrott markerat · ej proportionell skala</span></div>
+        </section>
+      </div>
+    </section>
+
+    <section class="variant" id="variant-5" aria-labelledby="heading-5">
+      <div class="variant-heading"><span class="index">05</span><div><h2 id="heading-5">En tidslinje med texten bakom</h2><p class="description">Välj en tidpunkt för att läsa dess exakta textstöd. Prova markörerna med mus eller tangentbord.</p></div></div>
+      <div class="preview">
+        <section class="widget evidence-widget" aria-label="Variant 5: interaktiv tidslinje med textstöd">
+          <div class="widget-heading"><h3>Tidslinje</h3></div>
+          <ol class="milestones">
+            <li class="milestone"><button type="button" class="point-button" data-evidence="event_start" aria-pressed="true" aria-controls="selected-evidence"><span class="event-name">Händelsestart</span><strong class="time">14 okt · 22:35</strong></button></li>
+            <li class="milestone"><button type="button" class="point-button" data-evidence="event_end" aria-pressed="false" aria-controls="selected-evidence"><span class="event-name">Händelseslut</span><strong class="time">15 okt · 00:30</strong></button></li>
+            <li class="milestone"><button type="button" class="point-button" data-evidence="published_at" aria-pressed="false" aria-controls="selected-evidence"><span class="event-name">Källan publicerad</span><strong class="time">15 okt · 06:05</strong></button></li>
+            <li class="milestone"><button type="button" class="point-button" data-evidence="analysis" aria-pressed="false" aria-controls="selected-evidence"><span class="event-name">Analys · nu</span><strong class="time">16 okt · 12:56</strong></button></li>
+          </ol>
+          <div class="quote-panel" id="selected-evidence" aria-live="polite" aria-atomic="true"><p class="quote-label" id="quote-label">Textstöd · händelsestart</p><blockquote id="quote-text">“Under onsdagskvällen vid 22.35 larmades polisen om en brand”</blockquote></div>
+          <div class="widget-foot"><span class="hint">Grov varaktighet: <strong>~2 timmar</strong></span></div>
+        </section>
+      </div>
+    </section>
+  </main>
+  <footer>
+    <p>Skisserna använder ditt extraherade resultat. Analystiden 16 oktober 2026 kl. 12:56 är ett fast exempel i Europe/Stockholm, eftersom den inte ingår i resultatet. Övriga tider visas som de returnerades, utan tillagd tidszon. ~2 timmar är modellens grova uppskattning; 1 h 55 min är skillnaden mellan start och slut.</p>
+    <details><summary>Visa originalets textstöd</summary><div class="source-quotes"><p><span>Händelsestart</span>“Under onsdagskvällen vid 22.35 larmades polisen om en brand”</p><p><span>Händelseslut</span>“enligt GP var branden släckt vid 00.30-tiden, natten mot torsdagen”</p><p><span>Källan publicerad</span>“Publicerad igår 06:05”</p></div></details>
+  </footer>
+  <script>
+    const widthToggle = document.getElementById('width-toggle')
+    widthToggle.addEventListener('click', () => {
+      const narrow = document.body.classList.toggle('narrow')
+      widthToggle.setAttribute('aria-pressed', String(narrow))
+      widthToggle.textContent = narrow ? 'Visa i full bredd' : 'Visa i smal panel'
+    })
+    const evidence = {
+      event_start: ['Textstöd · händelsestart', '“Under onsdagskvällen vid 22.35 larmades polisen om en brand”'],
+      event_end: ['Textstöd · händelseslut', '“enligt GP var branden släckt vid 00.30-tiden, natten mot torsdagen”'],
+      published_at: ['Textstöd · källan publicerad', '“Publicerad igår 06:05”'],
+      analysis: ['Analystid', 'Analystiden registreras av systemet 16 oktober 2026 kl. 12:56.'],
+    }
+    const pointButtons = [...document.querySelectorAll('.point-button')]
+    pointButtons.forEach((button) => button.addEventListener('click', () => {
+      pointButtons.forEach((point) => point.setAttribute('aria-pressed', String(point === button)))
+      const [label, quote] = evidence[button.dataset.evidence]
+      document.getElementById('quote-label').textContent = label
+      document.getElementById('quote-text').textContent = quote
+    }))
+    // Use a common wall-clock basis solely for this sample's proportional placement.
+    // No source timezone is inferred from timezone-less extraction results.
+    const wallTime = (value) => Date.parse(value + ':00Z')
+    const marks = [...document.querySelectorAll('.metric-mark')]
+    const start = wallTime(marks[0].dataset.time)
+    const span = wallTime(marks[3].dataset.time) - start
+    marks.forEach((mark) => mark.style.setProperty('--pos', (6 + 88 * (wallTime(mark.dataset.time) - start) / span) + '%'))
+    document.querySelector('.metric-active').style.width = (88 * (wallTime(marks[1].dataset.time) - start) / span) + '%'
+  </script>
+</body>
+</html>
