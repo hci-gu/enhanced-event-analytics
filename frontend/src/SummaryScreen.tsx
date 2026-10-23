@@ -84,7 +84,7 @@ export default function SummaryScreen({ analysis, text, onNewAnalysis }: {
         <section className="summary-pane" aria-labelledby="results-label">
           <h2 id="results-label" className="pane-label">Analysresultat</h2>
           <section className="summary-results" aria-label="Arbetsflöden och kategorier" tabIndex={0}>
-            {analysis.workflows.filter((workflow) => workflow.id !== 'dates').map((workflow) => {
+            {analysis.workflows.filter((workflow) => !['dates', 'location'].includes(workflow.id)).map((workflow) => {
               const selected = selection?.workflowIds.includes(workflow.id)
               return <WorkflowRow key={workflow.id} workflow={workflow} selected={selected}
                 highlightsEnabled={!hiddenWorkflows.includes(workflow.id)}

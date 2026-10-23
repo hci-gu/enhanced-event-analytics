@@ -95,12 +95,20 @@ Status is selected; failures stay on Status. Refreshing returns to the homepage;
 completed, successfully persisted analyses can be reopened from history.
 Mobile rows wrap their tags below the workflow label.
 New status/result colors are customizable in `src/colors.css`.
-The final `Datum` row remains queued during categorization and shows Pågår while
+When enabled, the `Datum` row remains queued during categorization and shows Pågår while
 date extraction runs. It counts toward workflow progress and is automatically
 scrolled into view when active. It has no category tags or disclosure. A nonfatal
 date error marks that row Misslyckades but still allows terminal success and the
 normal transition from Status to Sammanfattning. The summary shows date results
 only in the timeline, without a duplicate category card.
+
+The optional `Lokalisering` row follows dates and shows only queued/running/finished
+progress. It has no category tags, disclosure, highlight switch, location names,
+coordinates, or provider errors. Even a nonfatal location error completes progress
+and permits normal summary navigation. Location payloads are discarded by the UI;
+saved analyses restore this row without treating locations as category predictions.
+The summary contains no location card. Backend disable flags omit the respective
+workflow from new progress catalogs; saved dates remain available independently.
 
 ## Evidence-linked summary
 

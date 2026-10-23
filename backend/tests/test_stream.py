@@ -54,7 +54,7 @@ def test_iterator_delivers_progress_before_running_next_workflow(monkeypatch, no
     dates.assert_not_called()
     assert next(iterator) == ("workflow_completed", {"id": "dates", "results": [], "dates": None, "dates_error": None})
     dates.assert_called_once()
-    assert next(iterator) == ("analysis_completed", {"dates": None, "dates_error": None})
+    assert next(iterator) == ("analysis_completed", {"dates": None, "dates_error": None, "location": None, "location_error": None})
     with pytest.raises(StopIteration):
         next(iterator)
 
@@ -83,9 +83,9 @@ def test_stream_endpoint_contract_and_existing_json_endpoint(loaders, monkeypatc
         "workflow_started", "workflow_completed",
     ] * 6 + ["analysis_completed"]
     assert events[-1] == ("analysis_completed", {"embedding": EMBEDDING, "embedding_error": None,
-                                               "dates": None, "dates_error": None})
+                                               "dates": None, "dates_error": None, "location": None, "location_error": None})
     assert ordinary.json() == {"status": "ok", "title": "Testhändelse", "embedding": EMBEDDING,
-                              "dates": None, "dates_error": None,
+                              "dates": None, "dates_error": None, "location": None, "location_error": None,
                               "embedding_error": None, "results": {
         "risks": [], "reach": [], "service": [], "properties": [], "protection": [],
     }}

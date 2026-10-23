@@ -90,6 +90,7 @@ class AnalysisPersistence:
             "status": "Processing", "embedding_status": "Processing",
             "title": "", "predictions": {}, "error": None, "finished_at": "",
             "dates": None, "dates_error": None,
+            "location": None, "location_error": None,
         }
         # Do not retry an uncertain POST: it may have committed before a timeout.
         self.record_id = client.save(analysis_id, self.data, self._token)
@@ -106,15 +107,18 @@ class AnalysisPersistence:
                 self.data["title"] = data["title"]
                 self._save()
             elif event == "workflow_completed":
-                if data["id"] == "dates":
-                    self.data["dates"] = data.get("dates")
-                    self.data["dates_error"] = data.get("dates_error")
+                if data["id"] in {"dates", "location"}:
+                    name = data["id"]
+                    self.data[name] = data.get(name)
+                    self.data[f"{name}_error"] = data.get(f"{name}_error")
                 else:
                     self.data["predictions"][data["id"]] = data["results"]
                 self._save()
             elif event == "analysis_completed":
                 self.data["dates"] = data.get("dates")
                 self.data["dates_error"] = data.get("dates_error")
+                self.data["location"] = data.get("location")
+                self.data["location_error"] = data.get("location_error")
                 self._save()
 
     def embedding_completed(self, success: bool):
@@ -131,6 +135,8 @@ class AnalysisPersistence:
                 self.data["title"] = results["title"]
                 self.data["dates"] = results.get("dates")
                 self.data["dates_error"] = results.get("dates_error")
+                self.data["location"] = results.get("location")
+                self.data["location_error"] = results.get("location_error")
                 for workflow_id, predictions in results["results"].items():
                     self.data["predictions"].setdefault(workflow_id, predictions)
             self.data["status"] = "Failed" if error else "Complete"

@@ -33,7 +33,8 @@ from transformers import (
     ProcessorMixin,
 )
 
-from workflows import DatesFailure, DatesOutput, WorkflowError, iter_workflow_events, load_analysis_timezone, load_retry_limit, load_workflow_categories, run_workflows
+from workflows import DatesFailure, DatesOutput, WorkflowError, WorkflowSettings, iter_workflow_events, load_analysis_timezone, load_retry_limit, load_workflow_categories, load_workflow_settings, run_workflows
+from locations import LocationEntry, LocationFailure
 from embeddings import embed_document, load_embedding_runtime
 from persistence import AnalysisPersistence, create_pocketbase_client
 from vector_storage import VectorStorage, create_vector_storage
@@ -52,7 +53,7 @@ def configure_logging() -> None:
     for name in (
         "uvicorn", "uvicorn.error", "uvicorn.access",
         "uvicorn.error.app", "uvicorn.error.workflows", "uvicorn.error.embeddings", "uvicorn.error.persistence",
-        "uvicorn.error.vector_storage",
+        "uvicorn.error.vector_storage", "uvicorn.error.locations",
     ):
         logging.getLogger(name).setLevel(level)
 
@@ -67,6 +68,7 @@ class ModelRuntime:
     inference_lock: LockType = field(default_factory=Lock, repr=False)
     retry_limit: int = 1
     analysis_timezone: ZoneInfo | None = None
+    workflow_settings: WorkflowSettings | None = field(default=None, repr=False)
     serving_engine: Literal["transformers", "vllm"] = "transformers"
     engine: GenerationEngine = field(default_factory=TransformersEngine, repr=False)
 
@@ -158,6 +160,7 @@ async def lifespan(app: FastAPI):
     load_dotenv(dotenv_path=Path(__file__).with_name(".env"), override=False)
     configure_logging()
     analysis_timezone = load_analysis_timezone()
+    workflow_settings = load_workflow_settings()
     with create_pocketbase_client() as pocketbase:
         app.state.pocketbase = pocketbase
         try:
@@ -170,6 +173,7 @@ async def lifespan(app: FastAPI):
             try:
                 async with model_lifespan(app):
                     app.state.runtime.analysis_timezone = analysis_timezone
+                    app.state.runtime.workflow_settings = workflow_settings
                     yield
             finally:
                 await to_thread(storage.close)
@@ -359,6 +363,8 @@ class AnalyzeEventResponse(BaseModel):
     embedding_error: EmbeddingFailure | None = None
     dates: DatesOutput | None = None
     dates_error: DatesFailure | None = None
+    location: list[LocationEntry] | None = None
+    location_error: LocationFailure | None = None
     title: str = Field(description="Generated Swedish event title containing 1–10 words")
     results: dict[str, Any] = Field(
         description="Results keyed by risks, reach, service, properties and protection; each contains matched IDs and display names",
@@ -378,7 +384,7 @@ class AnalyzeEventResponse(BaseModel):
     description=(
         "Generate a Swedish title, then categorize event text by risks, reach, services, properties and protection values using the shared model. "
         "Each workflow returns zero, one, or multiple matches with IDs and display names. "
-        "Date extraction runs last and returns dates separately; date errors preserve category results. "
+        "Optional date and location extraction run after categories and return separate fields; their errors preserve category results. "
         "A document embedding runs in parallel and is returned at completion; embedding errors preserve analysis results."
     ),
     responses={

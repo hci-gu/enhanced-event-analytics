@@ -39,6 +39,8 @@ class SavedAnalysis(HistoryItem):
     predictions: dict[str, Any]
     dates: dict[str, Any] | None = None
     dates_error: dict[str, Any] | None = None
+    location: list[dict[str, Any]] | None = None
+    location_error: dict[str, Any] | None = None
     workflows: list[dict[str, str]] = Field(default_factory=list)
 
 
@@ -99,7 +101,7 @@ def get_analysis(analysis_id: UUID4, request: Request, response: Response,
     records = read_records(request, user, {
         "filter": f'created_by = "{user.id}" && status = "Complete" && analysis_id = "{analysis_id}"',
         "perPage": 1, "skipTotal": "true",
-        "fields": "id,analysis_id,title,status,created,finished_at,original_text,predictions,dates,dates_error",
+        "fields": "id,analysis_id,title,status,created,finished_at,original_text,predictions,dates,dates_error,location,location_error",
     })
     if not records:
         raise HTTPException(404, "Analysen kunde inte hittas.")
@@ -111,5 +113,9 @@ def get_analysis(analysis_id: UUID4, request: Request, response: Response,
     result.workflows = [
         {"id": name, "label": (WORKFLOWS[name].label or name) if name in WORKFLOWS else name}
         for name in result.predictions
-    ] + [{"id": "dates", "label": "Datum"}]
+    ]
+    # Reconstruct saved supplemental work independently of today's disable flags.
+    for name, label in (("dates", "Datum"), ("location", "Lokalisering")):
+        if getattr(result, name) is not None or getattr(result, f"{name}_error") is not None:
+            result.workflows.append({"id": name, "label": label})
     return result

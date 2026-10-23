@@ -194,9 +194,9 @@ Both analysis endpoints create one Analysis record after verifying the session a
 using the request UUID, verified user ID in `created_by`, trimmed original text, and both statuses set to
 `Processing`. They update the same record after title generation and every
 completed workflow, retaining evidence in storage even though the JSON response
-omits category evidence. Date results and nonfatal date errors are stored separately
-in the optional `dates` and `dates_error` JSON fields, outside `predictions`.
-Apply the date-field migration before deploying this backend; existing records
+omits category evidence. Dates and locations, with their nonfatal errors, are stored separately
+in optional `dates`, `dates_error`, `location`, and `location_error` JSON fields, outside `predictions`.
+Apply the extraction-field migrations before deploying this backend; existing records
 need no backfill. Category failure saves `Failed`, structured error details, and completed
 predictions. Success saves `Complete`. Both terminal states set `finished_at` in
 UTC. Embedding completion independently updates `embedding_status` without
@@ -315,7 +315,7 @@ and return `Cache-Control: no-store`, including on errors.
   validated before being used in PocketBase's filter. Results sort by
   `created DESC, id DESC`; new records do not shift subsequent pages.
 - `GET /analyses/{analysis_id}` uses the backend UUID v4 and returns the metadata,
-  `original_text`, workflow-keyed `predictions`, `dates`, `dates_error` and a workflow
+  `original_text`, workflow-keyed `predictions`, `dates`, `dates_error`, `location`, `location_error` and a workflow
   catalog. Unknown historical workflow IDs remain present. No generation runs.
 
 Missing, incomplete, unattributed or other users' records return 404 for details;
@@ -490,15 +490,66 @@ workflow, define a function with that signature and register `Workflow(function,
 "category-file.json", "Display label")` under its result key. A function that does not need categories
 can use `Workflow(function)` and receives an empty tuple. Remove an entry to disable
 a workflow. `run_workflows` generates the title first, then runs registered functions
-in order, then extracts dates and returns `{title, results, dates, dates_error}` with category results under their registry
+in order, then runs enabled date and location extraction and returns
+`{title, results, dates, dates_error, location, location_error}` with category results under their registry
 keys (`risks`, `reach`, `service`, `properties`, `protection`) in that order.
 The stream labels for the new workflows are `Egenskaper` and `Skyddsvärden`.
-All seven steps reuse the same model instance;
+All eight steps (when both optional workflows are enabled) reuse the same model instance;
 there is one model call per step, not a separate model per task.
+
+### Location extraction and optional workflows
+
+`DISABLE_DATE_WORKFLOW` and `DISABLE_LOCATION_WORKFLOW` default to `false`.
+Set either to `true` to omit its model/provider calls and progress events.
+Settings are validated at startup after python-dotenv loads `backend/.env`;
+process variables take precedence. Restart the backend after configuration changes.
+Previously saved dates/locations remain readable regardless of current flags.
+
+Keep `GEOAPIFY_API_KEY` server-side. Create a key at
+[Geoapify MyProjects](https://myprojects.geoapify.com/). Location extraction uses
+an independent Swedish prompt (4096 output tokens), exact source quotes, and the
+shared inference engine/lock. Malformed structured output retries using `RETRY_LIMIT`;
+inference and provider failures are not retried. Place roles are `event-site`,
+`affected-area`, and `contextual`, ordered by that priority and source order.
+Incidental comparisons are excluded; only verified source mentions/evidence survive.
+
+The model extracts queries, never coordinates. Only place queries/context are sent
+to [Geoapify's search API](https://apidocs.geoapify.com/docs/geocoding/), with
+automatic IP country bias disabled and source-established country filters.
+Swedish facilities/streets retain supported precision, falling back to an explicitly
+named city or region when necessary. Foreign places resolve to country points;
+continent-only mentions use qualified continent queries and verified continent names.
+The highest-ranked valid match within these constraints is used without a separate
+confidence threshold. Country/continent points are representative points, not boundaries.
+
+Both analysis endpoints and saved-analysis detail return `location` and
+`location_error`, separately from categories. `location` is a list containing:
+`mentions`, `roles`, `evidence`, `status`, nullable `longitude`/`latitude`, `granularity`,
+`display_name`, available `city`/`region`/`country`/`country_code`/`continent`,
+provider `place_id`, `confidence`, and `attribution`. Duplicate resolved places
+merge roles, mentions, and quotes. Unmatched places retain null coordinates and
+`status: "unresolved"`. An empty successful extraction is `[]`; disabled or failed
+extraction is null. Missing credentials and partial lookup failures return sanitized
+nonfatal errors while preserving available results and category/date completion.
+
+At most 20 distinct extracted queries and 20 distinct HTTP lookups (including
+fallbacks) are allowed per analysis, with repeated requests cached for that analysis.
+Truncation returns a nonfatal warning (code 206). HTTP calls are spaced at least
+200 ms apart across the backend process, have a 10-second timeout per HTTP operation,
+and ignore environment proxies. API keys are redacted from httpx/httpcore request
+logs; raw provider exceptions and authenticated URLs are never logged.
+
+The stream appends `location` (`Lokalisering`) after dates, with standard start and
+completion events. Its completion includes `results: []`, `location`, and
+`location_error`; terminal analysis completion repeats the supplemental fields.
+The frontend consumes only location progress. Provider/data-source attribution is
+retained with results; any future location display must render the required
+[Geoapify and source attribution](https://www.geoapify.com/pricing/).
+Apply `1792713600_add_location.go` in PocketBase before deploying this backend.
 
 ### Date extraction
 
-`extract_dates(text, runtime)` runs after all categories and before completion,
+`extract_dates(text, runtime)` runs after all categories and before location extraction,
 outside the category registry. The status catalog appends `dates` (label `Datum`),
 with `workflow_started` before extraction and `workflow_completed` afterward.
 The completion event carries an empty `results` list plus `dates` and `dates_error`;
@@ -593,9 +644,9 @@ Each frame is `event: <name>` followed by `data: <JSON>` and a blank line:
 | `workflow_started` | `{ "id": "risks" }` |
 | `workflow_completed` | `{ "id": "risks", "results": [{ "ID": "...", "name": "...", "evidence": ["exact supporting quote"] }] }` |
 | `workflow_failed` | `{ "id": "risks", "message": "...", "code": 502 }` |
-| `analysis_completed` | `{ "embedding": { ... }, "embedding_error": null, "dates": { ... }, "dates_error": null }` (each optional result can independently be null with a structured error) |
+| `analysis_completed` | `{ "embedding": { ... }, "embedding_error": null, "dates": { ... }, "dates_error": null, "location": [...], "location_error": null }` (each optional result can independently be null with a structured error) |
 
-The catalog follows category registry order and appends `dates` (`Datum`) last;
+The catalog follows category registry order, then enabled `dates` (`Datum`) and `location` (`Lokalisering`);
 category labels default to the registry key when absent.
 After `analysis_started`, title generation runs before any category workflow and
 emits `title_completed`. It is excluded from the catalog and category progress.
@@ -633,7 +684,7 @@ the hosting proxy as well. The frontend's `/api` prefix must be stripped.
 ## Verification
 
 ```powershell
-uv run --extra CPU python -m py_compile app.py serving.py auth.py history.py workflows.py embeddings.py persistence.py vector_storage.py
+uv run --extra CPU python -m py_compile app.py serving.py auth.py history.py workflows.py locations.py embeddings.py persistence.py vector_storage.py
 uv run --extra CPU python -m pytest
 uv lock --check
 ```
@@ -651,6 +702,18 @@ Embedding tests cover text-only loading, device/dtype selection, truncation,
 pooling/normalization, logging, concurrent analysis, failures, and cleanup.
 They include both `data/events/` articles to verify endpoint plumbing with mocked outputs;
 those checks do not establish article classification accuracy.
+
+For an explicit live Geoapify check without model loading, run from `backend/`:
+
+```powershell
+uv run --extra CPU python tests/smoke_locations.py
+```
+
+This loads `GEOAPIFY_API_KEY` using python-dotenv, mocks extraction and title
+generation, and calls Geoapify through the application workflow. It checks a
+Swedish city/street, a foreign country and a continent, printing only sanitized
+pass/fail outcomes. It does not start FastAPI, contact PocketBase, or establish
+real-model extraction quality. The normal pytest suite mocks all provider calls.
 
 For real inference, restart the backend with Gemma and run this from `backend/`:
 

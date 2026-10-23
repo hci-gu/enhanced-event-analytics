@@ -4,7 +4,7 @@ import json
 import logging
 import os
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
 from time import perf_counter
@@ -13,6 +13,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import torch
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError, field_validator
+
+from locations import extract_locations as resolve_locations
 
 if TYPE_CHECKING:
     from app import ModelRuntime
@@ -23,6 +25,34 @@ MAX_OUTPUT_TOKENS = 4096
 TITLE_OUTPUT_TOKENS = 64
 FALLBACK_TITLE = "Händelseanalys"
 logger = logging.getLogger("uvicorn.error.workflows")
+
+
+@dataclass(frozen=True)
+class WorkflowSettings:
+    disable_date: bool = False
+    disable_location: bool = False
+    geoapify_api_key: str = field(default="", repr=False)
+
+
+def load_workflow_settings() -> WorkflowSettings:
+    def disabled(name):
+        value = os.environ.get(name, "false").strip().lower()
+        if value not in {"true", "false"}:
+            raise RuntimeError(f"{name} must be true or false")
+        return value == "true"
+
+    return WorkflowSettings(disabled("DISABLE_DATE_WORKFLOW"), disabled("DISABLE_LOCATION_WORKFLOW"),
+                            os.environ.get("GEOAPIFY_API_KEY", "").strip())
+
+
+def extract_locations(text: str, runtime: "ModelRuntime") -> dict[str, Any]:
+    settings = getattr(runtime, "workflow_settings", None) or load_workflow_settings()
+    started = perf_counter()
+    logger.info("Workflow 'location' started")
+    try:
+        return resolve_locations(text, runtime, generate_text, settings.geoapify_api_key)
+    finally:
+        logger.info("Workflow 'location' finished in %.2fs", perf_counter() - started)
 
 TITLE_SYSTEM_PROMPT = (
     "Sammanfatta händelsetexten med en kort, saklig rubrik på svenska med 1–10 ord. "
@@ -506,9 +536,15 @@ def iter_workflow_events(
     text: str, runtime: "ModelRuntime", categories: dict[str, tuple[Category, ...]]
 ) -> Iterator[tuple[str, dict[str, Any]]]:
     workflows = tuple(WORKFLOWS.items())
+    settings = getattr(runtime, "workflow_settings", None) or load_workflow_settings()
+    supplemental = []
+    if not settings.disable_date:
+        supplemental.append(("dates", "Datum", extract_dates))
+    if not settings.disable_location:
+        supplemental.append(("location", "Lokalisering", extract_locations))
     yield "analysis_started", {"workflows": [
         {"id": name, "label": workflow.label or name} for name, workflow in workflows
-    ] + [{"id": "dates", "label": "Datum"}]}
+    ] + [{"id": name, "label": label} for name, label, _ in supplemental]}
     yield "title_completed", {"title": generate_title(text, runtime)}
     for name, workflow in workflows:
         yield "workflow_started", {"id": name}
@@ -521,10 +557,13 @@ def iter_workflow_events(
             raise
         logger.info("Workflow '%s' completed in %.2fs", name, perf_counter() - started)
         yield "workflow_completed", {"id": name, "results": result}
-    yield "workflow_started", {"id": "dates"}
-    dates_result = extract_dates(text, runtime)
-    yield "workflow_completed", {"id": "dates", "results": [], **dates_result}
-    yield "analysis_completed", dates_result
+    final = {"dates": None, "dates_error": None, "location": None, "location_error": None}
+    for name, _, function in supplemental:
+        yield "workflow_started", {"id": name}
+        result = function(text, runtime)
+        final.update(result)
+        yield "workflow_completed", {"id": name, "results": [], **result}
+    yield "analysis_completed", final
 
 
 def run_workflows(
@@ -533,18 +572,18 @@ def run_workflows(
 ) -> dict[str, Any]:
     results = {}
     title = FALLBACK_TITLE
-    dates_result = {"dates": None, "dates_error": None}
+    final = {"dates": None, "dates_error": None, "location": None, "location_error": None}
     for event, data in iter_workflow_events(text, runtime, categories):
         if on_event is not None:
             on_event(event, data)
         if event == "title_completed":
             title = data["title"]
         if event == "analysis_completed":
-            dates_result = data
-        if event == "workflow_completed" and data["id"] != "dates":
+            final = data
+        if event == "workflow_completed" and data["id"] not in {"dates", "location"}:
             result = data["results"]
             results[data["id"]] = [
                 {key: value for key, value in match.items() if key != "evidence"}
                 for match in result
             ] if isinstance(result, list) else result
-    return {"title": title, "results": results, **dates_result}
+    return {"title": title, "results": results, **final}

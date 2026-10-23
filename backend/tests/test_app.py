@@ -147,7 +147,8 @@ def test_requests_share_runtime_and_cleanup(loaders, monkeypatch):
             response = client.post("/analyze-event", json={"text": "  Swedish event  "})
             assert response.status_code == 200
             assert response.json() == {"status": "ok", "title": "Testhändelse", "results": empty_results,
-                                       "embedding": EMBEDDING, "embedding_error": None, "dates": None, "dates_error": None}
+                                       "embedding": EMBEDDING, "embedding_error": None, "dates": None, "dates_error": None,
+                                       "location": None, "location_error": None}
         assert runner.call_count == 2
         assert runner.call_args.args == ("Swedish event", runtime, backend.app.state.workflow_categories)
         assert callable(runner.call_args.kwargs["on_event"])
@@ -187,7 +188,7 @@ def test_article_endpoint_contract(loaders, monkeypatch, article):
             assert response.status_code == 200
             assert response.json() == {
                 "status": "ok",
-                "dates": None, "dates_error": None,
+                "dates": None, "dates_error": None, "location": None, "location_error": None,
                 "title": "Testhändelse",
                 "embedding": EMBEDDING,
                 "embedding_error": None,

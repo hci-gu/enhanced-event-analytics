@@ -150,8 +150,8 @@ again. Back up both databases together with their writers stopped or coordinated
 filesystem snapshots; see [storage setup](backend/README.md#lancedb-vector-storage).
 
 `workflows.py` defines independent workflow functions and the `WORKFLOWS` registry.
-After the five registered category workflows, a fixed `extract_dates` step uses
-the final `Datum` status row and standard workflow start/completion events, while
+After the five registered category workflows, an optional `extract_dates` step uses
+the `Datum` status row and standard workflow start/completion events, while
 remaining outside category predictions. It counts toward status progress; the
 active row scrolls into view. Date errors mark that row failed without preventing
 successful terminal completion and summary navigation. The step uses
@@ -173,6 +173,31 @@ hides it. The analysis reference is recorded once on successful stream completio
 in the browser and retained across navigation; source dates preserve their original
 calendar/time precision without timezone conversion.
 Format/evidence validation does not establish real-model interpretation quality.
+
+An optional location step follows dates. `DISABLE_DATE_WORKFLOW` and
+`DISABLE_LOCATION_WORKFLOW` default to false and are loaded after python-dotenv,
+with process variables taking precedence. Disabled steps make no inference or
+provider calls and have no progress row. Location extraction uses the same model
+and lock, a separate Swedish prompt (4096 output tokens), and verified exact quotes.
+Event sites precede affected areas and directly relevant context; duplicate places
+merge roles and evidence. Sweden permits facility/street/city/region precision,
+with explicitly supported city/region fallbacks. Foreign results use country or
+continent representative points. Geoapify supplies all coordinates; the model
+supplies only place queries/context, never coordinates or full articles to the API.
+Country constraints are enforced and automatic IP bias disabled. The highest-ranked
+valid provider match is retained with confidence and provider/source attribution.
+Unresolved mentions retain null coordinates. Per-analysis request caching, a
+20-query/lookup budget, process-wide 200 ms spacing, and 10-second HTTP operation
+timeouts bound provider work; there are no provider retries. Request logs redact
+API keys. The key remains server-only.
+
+`location` and `location_error` appear in JSON responses, workflow/analysis stream
+completion, saved-detail responses and optional PocketBase JSON fields outside
+category predictions. Errors are nonfatal and preserve partial locations and
+category/date results. `[]` means a successful empty extraction; null means not
+run or failed. The frontend retains only `Lokalisering` progress, with no result
+card, metadata or provider errors. Historical dates/locations are restored
+independently of current flags. Future location displays must include attribution.
 A fixed `generate_title` step outside the registry runs before categorization,
 using a separate Swedish prompt and the shared model. It generates a factual
 title, strips surrounding quotes/whitespace and validates 1–10 words using Pydantic,
@@ -247,7 +272,7 @@ Collections
   records remain unattributed and user deletion does not cascade-delete analyses,
   independent `embedding_status`: Processing/Failed/Complete, required `original_text`,
   `title`, `predictions`: workflow-keyed JSON including evidence, `error`: failure JSON,
-  optional `dates` and `dates_error`: final extraction output and nonfatal error JSON,
+  optional `dates`, `dates_error`, `location` and `location_error`: extraction output and nonfatal error JSON,
   automatic `created`/`updated` timestamps, optional `finished_at` for the category
   analysis terminal time). Owner-attributed creation/update is allowed; creator,
   UUID and source text cannot be changed through the API. Owner-scoped reads of

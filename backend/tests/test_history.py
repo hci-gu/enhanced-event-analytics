@@ -116,3 +116,21 @@ def test_anonymous_reads_require_login(history_client, monkeypatch):
     assert client.get("/analyses").status_code == 401
     assert client.get(f'/analyses/{item()["analysis_id"]}').status_code == 401
     assert not requests
+
+
+def test_location_history_and_dates_restore_independently_of_disable_flags(history_client, monkeypatch):
+    client, state, requests = history_client
+    monkeypatch.setenv("DISABLE_DATE_WORKFLOW", "true")
+    monkeypatch.setenv("DISABLE_LOCATION_WORKFLOW", "true")
+    record = item(original_text="Stockholm", predictions={}, dates={"published_at": "2026-10-23"},
+                  location=[{"longitude": 18.06, "latitude": 59.33}], location_error={"code": 206, "message": "Limited"})
+    state["items"] = [record]
+    data = client.get(f'/analyses/{record["analysis_id"]}').json()
+    assert data["location"] == record["location"]
+    assert data["location_error"] == record["location_error"]
+    assert [w["id"] for w in data["workflows"]] == ["dates", "location"]
+    assert "location" in requests[-1].url.params["fields"]
+    state["items"] = [item(original_text="Legacy", predictions={})]
+    data = client.get(f'/analyses/{record["analysis_id"]}').json()
+    assert data["location"] is data["location_error"] is None
+    assert data["workflows"] == []

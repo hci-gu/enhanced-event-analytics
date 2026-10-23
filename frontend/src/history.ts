@@ -53,6 +53,7 @@ export async function loadSavedAnalysis(analysisId: string, signal?: AbortSignal
   if (start.type !== 'analysis_started') throw new Error('Den sparade analysen är ogiltig.')
   const text = data.original_text
   const workflows: WorkflowState[] = start.workflows.map((workflow) => {
+    if (workflow.id === 'location') return { ...workflow, status: 'completed', results: [] }
     if (workflow.id === 'dates') return {
       ...workflow, status: data.dates_error ? 'failed' : 'completed', results: [],
       ...(data.dates_error ? { error: 'Datum kunde inte extraheras. Kategoriseringsresultaten finns kvar.' } : {}),

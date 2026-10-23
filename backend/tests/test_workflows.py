@@ -120,7 +120,7 @@ def test_registered_workflows_have_separate_prompts_and_categories(monkeypatch, 
     assert len(categories["protection"]) == 5
     runtime = object()
     assert workflows.run_workflows("Event", runtime, categories) == {
-        "dates": None, "dates_error": None,
+        "dates": None, "dates_error": None, "location": None, "location_error": None,
         "title": "Testhändelse", "results": {
             "risks": [], "reach": [], "service": [], "properties": [], "protection": [],
         },
@@ -364,7 +364,7 @@ def test_registry_orchestrates_functions(categories, monkeypatch, no_date_infere
     runtime = object()
     result = workflows.run_workflows("Event", runtime, {"risks": categories, "other": ()})
     assert result == {"title": "Testhändelse", "results": {"risks": [], "other": {"summary": "Example"}},
-                      "dates": None, "dates_error": None}
+                      "dates": None, "dates_error": None, "location": None, "location_error": None}
     title.assert_called_once_with("Event", runtime)
     first.assert_called_once_with("Event", runtime, categories)
     second.assert_called_once_with("Event", runtime, ())

@@ -23,6 +23,11 @@ def vector_storage_environment(monkeypatch, tmp_path):
 
 @pytest.fixture(autouse=True)
 def serving_environment(monkeypatch):
+    # Existing category/date suites never make provider calls or location inference.
+    # Location integration tests explicitly enable the workflow with mock transport.
+    monkeypatch.setenv("DISABLE_LOCATION_WORKFLOW", "true")
+    monkeypatch.delenv("DISABLE_DATE_WORKFLOW", raising=False)
+    monkeypatch.delenv("GEOAPIFY_API_KEY", raising=False)
     monkeypatch.delenv("SERVING_ENGINE", raising=False)
     monkeypatch.delenv("VLLM_GPU_MEMORY_UTILIZATION", raising=False)
     monkeypatch.delenv("VLLM_KV_CACHE_MEMORY_BYTES", raising=False)

@@ -50,6 +50,8 @@ the record API; they do not log collection migrations or failed record writes.
 | `predictions` | JSON, up to 2 MiB | Completed workflow results keyed by workflow ID. Initially `{}` or null. |
 | `dates` | Optional JSON, up to 64 KiB | Original publication, primary event interval, rough duration hint, and exact source quotes. Null before extraction or on extraction failure. |
 | `dates_error` | Optional JSON, up to 16 KiB | Nonfatal date extraction error containing `code` and `message`; null on success. |
+| `location` | Optional JSON, up to 256 KiB | List of event locations with roles, exact evidence, nullable longitude/latitude, geographic precision, metadata, confidence and provider/source attribution. Empty list for no matches; null before extraction or when disabled/failed. |
+| `location_error` | Optional JSON, up to 16 KiB | Nonfatal extraction/provider error or query-limit warning. Available locations remain stored. |
 | `error` | JSON | Failure details, or null. |
 | `created`, `updated` | Automatic dates | Record creation and last update times. |
 | `finished_at` | Optional date | UTC time when category analysis becomes `Complete` or `Failed`; empty while processing. |
@@ -72,9 +74,11 @@ The writer saves `original_text` and initializes both status columns to
 `Processing` before inference, save the title when ready,
 and append results after each workflow completes. Preserve partial predictions
 and set `Failed` immediately if any workflow fails. Set `Complete` only after every
-registered category workflow succeeds and the final date extraction attempt finishes.
-Date extraction errors are stored separately in `dates_error` and do not fail the
-analysis. The additive date migration leaves existing records without dates;
+registered category workflow succeeds and enabled date/location extraction attempts finish.
+Date and location extraction errors are stored separately in `dates_error` and
+`location_error` and do not fail the analysis. Apply the additive
+`1792713600_add_location.go` migration and restart any running PocketBase to refresh
+its collection cache. Existing records have no location results;
 no backfill is required. An empty match list is a successful result,
 not a failure. Title fallback and an embedding failure do not fail category
 analysis. Set `finished_at` when category analysis enters either terminal state;

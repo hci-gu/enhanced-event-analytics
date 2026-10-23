@@ -55,6 +55,7 @@ export function parseAnalysisEvent(type: string, json: string): AnalysisEvent {
   if (type === 'workflow_started' && isText(data.id)) return { type, id: data.id }
   if (type === 'title_completed' && isText(data.title)) return { type, title: data.title }
   if (type === 'workflow_completed' && isText(data.id) && Array.isArray(data.results)) {
+    if (data.id === 'location') return { type, id: data.id, results: [] }
     const results: Match[] = []
     for (const item of data.results) {
       if (!isRecord(item) || !isText(item.ID) || !isText(item.name)) break
