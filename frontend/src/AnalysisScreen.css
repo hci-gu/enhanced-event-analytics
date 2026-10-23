@@ -67,7 +67,7 @@
   text-transform: uppercase;
   color: var(--workflow-muted-text);
 }
-.workflow-completed .workflow-state-text { color: var(--primary-color); }
+.workflow-completed .workflow-state-text { color: var(--workflow-check-text); }
 .workflow-running .workflow-state-text { font-style: italic; }
 .workflow-unavailable { cursor: default; }
 .workflow-queued, .workflow-skipped { color: var(--workflow-muted-text); }
@@ -82,7 +82,7 @@
   border-radius: 50%;
   font-size: 12px;
 }
-.workflow-completed .workflow-symbol { border-color: var(--primary-color); color: var(--primary-color); }
+.workflow-completed .workflow-symbol { border-color: var(--workflow-check-text); color: var(--workflow-check-text); }
 .workflow-spinner::before {
   content: '';
   width: 4px;

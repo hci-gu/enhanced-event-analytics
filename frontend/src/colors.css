@@ -25,7 +25,7 @@
   --status-error-background: #ffede5;
   --status-error-text: #8c3020;
   --workflow-muted-text: #74746a;
-  --workflow-check-text: var(--primary-color);
+  --workflow-check-text: #2f7046;
   --history-completed-text: #526a56;
   --progress-track-color: var(--border-color);
   --results-panel-background: #fffcf5;
