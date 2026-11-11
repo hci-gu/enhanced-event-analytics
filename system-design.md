@@ -57,6 +57,13 @@ heading once finished; both analysis and summary screens use the generated title
 It has no status row or contribution to category progress.
 
 ## Backend
+The context resource manifest in `backend/resources/risk-catalogue.json` maps all
+24 risk category IDs to unique PDFs, with a separate user guide and an
+`auto_include_when_risks_present` flag (default `false`). Paths are relative to
+`backend/resources/`. This establishes the mapping only; dynamic document loading,
+PDF text extraction, and prompt injection remain future work. The intended guide
+policy includes it once only when enabled and at least one risk is classified.
+
 FastAPI exposes `POST /analyze-event`, accepting JSON with a non-empty `text`
 string. It trims the text and currently returns
 `{"status":"ok","title":"Händelserubrik","results":{"risks":[],"reach":[],"service":[],"properties":[],"protection":[]}}`.

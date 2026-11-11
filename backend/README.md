@@ -39,6 +39,29 @@ environment and restart the backend. The 26B A4B checkpoint is a mixture-of-expe
 model; its active parameter count does not mean only 4B parameters need to fit
 in memory. The current loader places the full checkpoint on CPU or GPU 0.
 
+## Risk catalogue resource mapping
+
+[`resources/risk-catalogue.json`](resources/risk-catalogue.json) explicitly maps
+each of the 24 IDs in `schemas/risks.json` to one unique PDF. File paths are
+relative to `backend/resources/`, independent of the process working directory.
+Use these exact IDs for lookups rather than deriving filenames from display names.
+In particular, `skogs-_och_vegetationsbränder` maps to
+`skogs-och-vegetationsbränder.pdf`, and `översvämningar` maps to the existing
+filename `översvämmningar.pdf`.
+
+The 25th PDF is configured separately under `user_guide`.
+`auto_include_when_risks_present` defaults to `false`; set it to `true` to request
+that future context loading include the guide once whenever at least one risk
+is classified. With no classified risks, no catalogue documents should be loaded,
+regardless of this setting. Multiple risks should select their respective PDFs
+and at most one copy of the guide.
+
+This first step establishes the mapping and configuration contract only. The
+analysis workflows do not yet read the manifest, extract PDF text, or inject
+catalogue content into prompts. `tests/test_risk_catalogue.py` checks exact schema
+coverage, unique document assignments, guide separation, and all 25 PDF paths
+without loading a model.
+
 ## Serving engine selection
 
 `SERVING_ENGINE` defaults to `transformers`; its only accepted values are
