@@ -1214,6 +1214,7 @@ dependencies = [
     { name = "pyarrow", version = "25.0.1", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.11' and sys_platform == 'linux') or (python_full_version < '3.11' and sys_platform == 'win32') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-24-enhanced-event-analytics-cpu' and extra == 'extra-24-enhanced-event-analytics-cuda') or (sys_platform == 'linux' and extra == 'extra-24-enhanced-event-analytics-cpu' and extra == 'extra-24-enhanced-event-analytics-cuda') or (sys_platform == 'win32' and extra == 'extra-24-enhanced-event-analytics-cpu' and extra == 'extra-24-enhanced-event-analytics-cuda')" },
     { name = "pyarrow", version = "26.0.0", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.11' and sys_platform == 'linux') or (python_full_version >= '3.11' and sys_platform == 'win32') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-24-enhanced-event-analytics-cpu' and extra == 'extra-24-enhanced-event-analytics-cuda') or (sys_platform == 'linux' and extra == 'extra-24-enhanced-event-analytics-cpu' and extra == 'extra-24-enhanced-event-analytics-cuda') or (sys_platform == 'win32' and extra == 'extra-24-enhanced-event-analytics-cpu' and extra == 'extra-24-enhanced-event-analytics-cuda')" },
     { name = "pydantic", marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'extra-24-enhanced-event-analytics-cpu' and extra == 'extra-24-enhanced-event-analytics-cuda')" },
+    { name = "pypdf", marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'extra-24-enhanced-event-analytics-cpu' and extra == 'extra-24-enhanced-event-analytics-cuda')" },
     { name = "python-dotenv", marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'extra-24-enhanced-event-analytics-cpu' and extra == 'extra-24-enhanced-event-analytics-cuda')" },
     { name = "transformers", marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'extra-24-enhanced-event-analytics-cpu' and extra == 'extra-24-enhanced-event-analytics-cuda')" },
     { name = "tzdata", marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'extra-24-enhanced-event-analytics-cpu' and extra == 'extra-24-enhanced-event-analytics-cuda')" },
@@ -1245,6 +1246,7 @@ requires-dist = [
     { name = "pillow", specifier = ">=10" },
     { name = "pyarrow", specifier = ">=18" },
     { name = "pydantic", specifier = ">=2.13.5" },
+    { name = "pypdf", specifier = ">=6,<8" },
     { name = "python-dotenv", specifier = ">=1.0" },
     { name = "torch", marker = "sys_platform == 'linux' and extra == 'cuda'", specifier = "==2.13.0", index = "https://download.pytorch.org/whl/cu130", conflict = { package = "enhanced-event-analytics", extra = "cuda" } },
     { name = "torch", marker = "extra == 'cpu'", specifier = ">=2.6", index = "https://download.pytorch.org/whl/cpu", conflict = { package = "enhanced-event-analytics", extra = "cpu" } },
@@ -4539,6 +4541,18 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/a7/ce/3062bf51bc0d98a344b9ed229a40535f6f1d309fc9ffaf34719b67ed3e21/pynvvideocodec-2.0.4-cp314-cp314-manylinux_2_28_x86_64.whl", hash = "sha256:d9ec06f47bca7b20a6e8234afaf596699c57a477be292613d676802e7e808ed2", size = 43174764, upload-time = "2026-05-27T04:08:19.02Z" },
     { url = "https://files.pythonhosted.org/packages/be/de/27eedeaa3ee5ec3dc2e4b1a7ac2b3d15ebb04cbfa768ca03d159a8328612/pynvvideocodec-2.0.4-cp314-cp314-manylinux_2_34_aarch64.whl", hash = "sha256:834fdbef7f3fc79285b5c2a88d1f1f7cd13543a9a7f2a2786141b181d1daaac9", size = 35755640, upload-time = "2026-05-27T04:08:45.728Z" },
     { url = "https://files.pythonhosted.org/packages/f1/9a/ff638f3203b3e49718760a68e7f573747d3d814b817d949501243405c9d0/pynvvideocodec-2.0.4-cp314-cp314-win_amd64.whl", hash = "sha256:fbe730967d5402ffca520b12fa21725cbd22a6d2c9fae882ea1d95085a400fd9", size = 25694550, upload-time = "2026-05-27T04:09:11.735Z" },
+]
+
+[[package]]
+name = "pypdf"
+version = "7.0.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "typing-extensions", marker = "(python_full_version < '3.11' and sys_platform == 'linux') or (python_full_version < '3.11' and sys_platform == 'win32') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-24-enhanced-event-analytics-cpu' and extra == 'extra-24-enhanced-event-analytics-cuda') or (sys_platform == 'linux' and extra == 'extra-24-enhanced-event-analytics-cpu' and extra == 'extra-24-enhanced-event-analytics-cuda') or (sys_platform == 'win32' and extra == 'extra-24-enhanced-event-analytics-cpu' and extra == 'extra-24-enhanced-event-analytics-cuda')" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/00/c2/4c34b3229abae3e2fcc7809e6cf80fdea159771a37142f475fbf1009c809/pypdf-7.0.1.tar.gz", hash = "sha256:0a78bb99efb41e9088260e9a8e5da134a5cbb9a322014744177bf29b5267ea6d", size = 7206748, upload-time = "2026-11-10T11:47:22.582Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d5/a9/ae11deef21eaac5113f8c3848da1c42423b7abeca0abc349bfec7abf4c4e/pypdf-7.0.1-py3-none-any.whl", hash = "sha256:6131b764b046282357037309e7ef2a1b7679d4a5c53eed3db2bfbf7c673ddc2b", size = 416136, upload-time = "2026-11-10T11:47:20.716Z" },
 ]
 
 [[package]]
