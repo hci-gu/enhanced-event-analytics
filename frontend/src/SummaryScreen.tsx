@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
-import type { AnalysisState } from './analysis'
+import type { AnalysisState, WorkflowState } from './analysis'
 import { activeSelection, evidenceSegments, highlightBands, initialInteraction, interact, workflowColor } from './evidence'
 import type { Selection } from './evidence'
 import WorkflowRow from './WorkflowRow'
 import DateTimeline from './DateTimeline'
 import './AnalysisScreen.css'
 import './SummaryScreen.css'
+
+const categoryOrder = ['service', 'protection', 'reach', 'risks', 'properties']
 
 export default function SummaryScreen({ analysis, text, onNewAnalysis }: {
   analysis: AnalysisState; text: string; onNewAnalysis?: () => void
@@ -41,6 +43,21 @@ export default function SummaryScreen({ analysis, text, onNewAnalysis }: {
     }
   }
 
+  function renderWorkflow(workflow: WorkflowState) {
+    const selected = selection?.workflowIds.includes(workflow.id)
+    return <WorkflowRow key={workflow.id} workflow={workflow} selected={selected}
+      highlightsEnabled={!hiddenWorkflows.includes(workflow.id)}
+      onToggleHighlights={() => setHiddenWorkflows((hidden) => hidden.includes(workflow.id)
+        ? hidden.filter((id) => id !== workflow.id) : [...hidden, workflow.id])}
+      onQuoteClick={(quote) => navigateToQuote(workflow.id, quote)}
+      rowEvents={{
+        onMouseEnter: () => dispatch({ type: 'hover', selection: { workflowIds: [workflow.id] } }),
+        onMouseLeave: () => dispatch({ type: 'hover', selection: null }),
+      }}
+      summaryEvents={events({ workflowIds: [workflow.id] }, false)}
+      style={{ '--workflow-evidence-color': workflowColor(workflow.id) } as CSSProperties} />
+  }
+
   return (
     <section className="summary-screen" aria-labelledby="summary-title"
       onKeyDown={(event) => {
@@ -55,6 +72,15 @@ export default function SummaryScreen({ analysis, text, onNewAnalysis }: {
       </div>
       <p className="visually-hidden" role="status">Analysen är färdig. Sammanfattning med markerat textstöd.</p>
       <div className="summary-columns">
+        <section className="summary-pane" aria-labelledby="results-label">
+          <h2 id="results-label" className="pane-label">Analysresultat</h2>
+          <section className="summary-results" aria-label="Arbetsflöden och kategorier" tabIndex={0}>
+            {categoryOrder.flatMap((id) => analysis.workflows.filter((workflow) => workflow.id === id)).map(renderWorkflow)}
+            {analysis.dates && analysis.analyzedAt && <DateTimeline dates={analysis.dates}
+              analyzedAt={analysis.analyzedAt} text={text} />}
+            {analysis.workflows.filter((workflow) => ![...categoryOrder, 'dates', 'location'].includes(workflow.id)).map(renderWorkflow)}
+          </section>
+        </section>
         <section className="summary-pane" aria-labelledby="source-label">
           <h2 id="source-label" className="pane-label">Händelsetext</h2>
           <section ref={textViewport} className="summary-text" aria-label="Ursprunglig händelsetext" tabIndex={0}>
@@ -79,27 +105,6 @@ export default function SummaryScreen({ analysis, text, onNewAnalysis }: {
                   }
                 }}>{segment.text}</mark>
             })}
-          </section>
-        </section>
-        <section className="summary-pane" aria-labelledby="results-label">
-          <h2 id="results-label" className="pane-label">Analysresultat</h2>
-          <section className="summary-results" aria-label="Arbetsflöden och kategorier" tabIndex={0}>
-            {analysis.workflows.filter((workflow) => !['dates', 'location'].includes(workflow.id)).map((workflow) => {
-              const selected = selection?.workflowIds.includes(workflow.id)
-              return <WorkflowRow key={workflow.id} workflow={workflow} selected={selected}
-                highlightsEnabled={!hiddenWorkflows.includes(workflow.id)}
-                onToggleHighlights={() => setHiddenWorkflows((hidden) => hidden.includes(workflow.id)
-                  ? hidden.filter((id) => id !== workflow.id) : [...hidden, workflow.id])}
-                onQuoteClick={(quote) => navigateToQuote(workflow.id, quote)}
-                rowEvents={{
-                  onMouseEnter: () => dispatch({ type: 'hover', selection: { workflowIds: [workflow.id] } }),
-                  onMouseLeave: () => dispatch({ type: 'hover', selection: null }),
-                }}
-                summaryEvents={events({ workflowIds: [workflow.id] }, false)}
-                style={{ '--workflow-evidence-color': workflowColor(workflow.id) } as CSSProperties} />
-            })}
-            {analysis.dates && analysis.analyzedAt && <DateTimeline dates={analysis.dates}
-              analyzedAt={analysis.analyzedAt} text={text} />}
           </section>
         </section>
       </div>

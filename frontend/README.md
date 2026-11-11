@@ -112,14 +112,16 @@ workflow from new progress catalogs; saved dates remain available independently.
 
 ## Evidence-linked summary
 
-The summary keeps the generated title, displays the original input unchanged on the
-left, and shows expandable workflows in backend registry order on the right.
+The summary keeps the generated title, shows expandable workflows on the left,
+and displays the original input unchanged on the right. Results appear in the order
+Verksamheter, Skyddsvärden, Räckvidd, Riskområden, Egenskaper, Tidslinje, followed
+by any additional workflows in backend registry order.
 Category names remain visible when result groups are collapsed. Ny analys returns
 to an empty composer while preserving the completed result in the Sidor menu until
 a new submission replaces it.
-Each pane scrolls internally; mobile stacks text above results.
+Each pane scrolls internally; narrow windows stack results above text.
 When successful date extraction supplies at least one valid source/event date,
-a `Tidslinje` widget appears below the category cards in the results pane.
+a `Tidslinje` widget appears after Egenskaper in the results pane.
 It starts collapsed with its title and timeline visible. The title button toggles
 the supporting quotes and rough duration; selecting any milestone also expands it,
 including when reselecting the current milestone. Native buttons support keyboard use.

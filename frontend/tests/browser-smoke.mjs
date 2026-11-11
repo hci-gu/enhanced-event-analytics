@@ -123,6 +123,12 @@ try {
     await menu.click()
     await page.getByRole('button', { name: 'Sammanfattning', exact: true }).click()
     await page.locator('.summary-screen').waitFor()
+    assert.deepEqual(await page.locator('.summary-results .workflow-label').allTextContents(),
+      ['Verksamheter', 'Räckvidd', 'Riskområden', ...workflows.slice(3).map((workflow) => workflow.label)])
+    const resultsPane = await page.locator('.summary-pane').first().boundingBox()
+    const textPane = await page.locator('.summary-pane').last().boundingBox()
+    if (viewport.width > 800) assert.ok(resultsPane.x < textPane.x)
+    else assert.ok(resultsPane.y < textPane.y)
     const timeline = page.getByRole('region', { name: 'Tidslinje', exact: true })
     await timeline.scrollIntoViewIfNeeded()
     assert.equal(await timeline.locator('.date-timeline-point').count(), 4)
@@ -171,7 +177,9 @@ try {
     await page.screenshot({ path: join(screenshots, `timeline-${viewport.width}.png`) })
     assert.equal(await page.getByLabel('Sök händelser', { exact: true }).count(), 1)
     const mark = page.locator('mark').first()
-    const result = page.locator('.summary-results .workflow-result').first()
+    const result = page.locator('.summary-results .workflow-result').filter({
+      has: page.getByRole('switch', { name: 'Textmarkeringar för Riskområden' }),
+    })
     const dotColor = await result.locator('.workflow-color-dot').evaluate((element) => getComputedStyle(element).backgroundColor)
     assert.equal(dotColor, await mark.evaluate((element) => getComputedStyle(element).backgroundColor))
     await mark.evaluate((element) => element.click())
@@ -190,7 +198,7 @@ try {
     await page.keyboard.press('Space')
     assert.equal(await highlightToggle.getAttribute('aria-checked'), 'true')
     assert.equal(await result.getAttribute('open'), null)
-    await page.locator('.summary-results summary').first().click()
+    await result.locator('summary').click()
     const quoteButton = result.getByRole('button', { name: 'Visa textstöd i händelsetexten: Vatten stiger', exact: true })
     const assertQuotePosition = async () => {
       const fraction = await page.locator('.summary-text').evaluate((element) => {
@@ -217,10 +225,13 @@ try {
       // Closing keeps native details open while the body contracts, then hides it.
       await result.locator('summary').click()
       assert.equal(await result.getAttribute('open'), '')
-      await page.waitForFunction(() => !document.querySelector('.summary-results details').open)
+      await page.waitForFunction(() => ![...document.querySelectorAll('.summary-results details')]
+        .find((element) => element.querySelector('.workflow-label').textContent === 'Riskområden').open)
       await result.locator('summary').click()
       assert.equal(await result.locator('.workflow-disclosure-body').evaluate((element) => element.getAnimations().length > 0), true)
-      await page.waitForFunction(() => document.querySelector('.summary-results .workflow-disclosure-body').getAnimations().length === 0)
+      await page.waitForFunction(() => [...document.querySelectorAll('.summary-results details')]
+        .find((element) => element.querySelector('.workflow-label').textContent === 'Riskområden')
+        .querySelector('.workflow-disclosure-body').getAnimations().length === 0)
       // Closed menus remain inert while their visible exit transition finishes.
       await menu.click()
       await page.keyboard.press('Escape')
