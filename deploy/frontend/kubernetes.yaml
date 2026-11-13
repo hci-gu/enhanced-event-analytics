@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: event-frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: event-frontend
+  template:
+    metadata:
+      labels:
+        app: event-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: example.com/event-frontend:replace-me
+          ports:
+            - containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: event-frontend
+spec:
+  selector:
+    app: event-frontend
+  ports:
+    - port: 80
+      targetPort: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: event-frontend
+spec:
+  ingressClassName: replace-me
+  tls:
+    - hosts:
+        - events.example.com
+      secretName: event-frontend-tls
+  rules:
+    - host: events.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: event-frontend
+                port:
+                  number: 80
+---
+apiVersion: tailscale.com/v1alpha1
+kind: ProxyGroup
+metadata:
+  name: event-egress
+spec:
+  type: egress
+  replicas: 2
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-backend
+  annotations:
+    tailscale.com/tailnet-fqdn: spark.example-tailnet.ts.net
+    tailscale.com/proxy-group: event-egress
+spec:
+  type: ExternalName
+  externalName: placeholder
+  ports:
+    - name: https
+      port: 443
+      protocol: TCP
