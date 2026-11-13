@@ -10,7 +10,7 @@ directory in the backend container, not a separate server.
 These manifests are starting points and require the substitutions below. Run
 Docker build commands from the repository root. The Spark requires an ARM64
 NVIDIA driver and NVIDIA Container Toolkit configured for Docker; the locked
-CUDA/vLLM binaries and model must also support its hardware. This configuration
+CUDA/PyTorch binaries and model must also support its hardware. This configuration
 has not itself established compatibility with a particular Spark installation.
 Use one backend worker and one Spark stack: the local databases and inference
 runtime are not configured for multiple independent replicas.
@@ -24,7 +24,10 @@ runtime are not configured for multiple independent replicas.
    for example `/etc/event-analytics.env`. Set `MODEL_ID`, the exact public
    `AUTH_ALLOWED_ORIGINS`, and any required `HF_TOKEN` and `GEOAPIFY_API_KEY`.
    Protect this file; do not commit it. See `backend/README.md` for model,
-   authentication, optional workflow, and memory settings. Additional backend
+   authentication, optional workflow, and memory settings. The deployment defaults
+   to Transformers with the Google BF16 Gemma checkpoint; the existing CUDA
+   dependency profile also installs vLLM, but Transformers does not load it.
+   Additional backend
    environment settings can be added to the Compose service as needed.
 3. From the repository root, build and start:
 
