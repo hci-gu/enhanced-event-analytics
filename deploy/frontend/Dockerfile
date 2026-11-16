@@ -6,7 +6,8 @@ RUN pnpm install --frozen-lockfile
 COPY --exclude=.env --exclude=node_modules --exclude=dist frontend/ ./
 RUN pnpm build
 
-FROM nginx:alpine
+FROM nginxinc/nginx-unprivileged:alpine
 COPY deploy/frontend/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist/ /usr/share/nginx/html/
-EXPOSE 80
+EXPOSE 8080
+ENTRYPOINT ["nginx", "-g", "daemon off;"]

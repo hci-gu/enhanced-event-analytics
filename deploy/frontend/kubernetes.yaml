@@ -14,50 +14,53 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: example.com/event-frontend:replace-me
+          image: registry.k8s.gu.se/appademin/event-frontend:0.0.1-test
+          imagePullPolicy: Always
           ports:
-            - containerPort: 80
+            - containerPort: 8080
+              name: web
+              protocol: TCP
           readinessProbe:
             httpGet:
               path: /
-              port: 80
+              port: web
           livenessProbe:
             httpGet:
               path: /
-              port: 80
+              port: web
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: event-frontend
+  name: event-frontend-service
 spec:
   selector:
     app: event-frontend
   ports:
-    - port: 80
-      targetPort: 80
+    - protocol: TCP
+      port: 8080
+      targetPort: web
 ---
-apiVersion: networking.k8s.io/v1
-kind: Ingress
+kind: Route
+apiVersion: route.openshift.io/v1
 metadata:
   name: event-frontend
+  annotations:
+    kubernetes.io/tls-acme: 'true'
+    haproxy.router.openshift.io/set-forwarded-headers: replace
+    haproxy.router.openshift.io/timeout: 1h
 spec:
-  ingressClassName: replace-me
+  host: event-analysis.test.appadem.in
+  to:
+    kind: Service
+    name: event-frontend-service
+    weight: 100
+  port:
+    targetPort: 8080
   tls:
-    - hosts:
-        - events.example.com
-      secretName: event-frontend-tls
-  rules:
-    - host: events.example.com
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: event-frontend
-                port:
-                  number: 80
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None
 ---
 apiVersion: tailscale.com/v1alpha1
 kind: ProxyGroup
@@ -72,7 +75,7 @@ kind: Service
 metadata:
   name: spark-backend
   annotations:
-    tailscale.com/tailnet-fqdn: spark.example-tailnet.ts.net
+    tailscale.com/tailnet-fqdn: clic-spark.tail796302.ts.net
     tailscale.com/proxy-group: event-egress
 spec:
   type: ExternalName

@@ -1,6 +1,6 @@
 # Deployment
 
-The frontend runs in Kubernetes; the backend, PocketBase and embedded LanceDB
+The frontend runs in OpenShift; the backend, PocketBase and embedded LanceDB
 run on a DGX Spark. The browser reaches the frontend over HTTPS. Nginx forwards
 `/api/` over a Tailscale Kubernetes egress proxy to Tailscale Serve on the
 Spark, which forwards to FastAPI on host loopback. PocketBase shares the
@@ -59,7 +59,7 @@ PocketBase migrations run at startup. After recreating the backend container,
 recreate PocketBase too (`docker compose ... up -d --force-recreate pocketbase`)
 so its shared network namespace follows the backend.
 
-## Kubernetes
+## OpenShift frontend
 
 Install the Tailscale Kubernetes Operator separately and configure its
 credentials and tailnet tag ownership as described in the
@@ -78,19 +78,40 @@ uses two replicas; adjust its tags and access policy for your tailnet. See the
    docker push REGISTRY/event-frontend:TAG
    ```
 
-3. In `kubernetes.yaml`, replace the image, ingress class, public hostname and
-   TLS secret name. Provision that TLS secret using your cluster's certificate
-   process. Set the same public HTTPS origin in the Spark environment file.
-   Apply the file in the intended namespace:
+3. In `kubernetes.yaml`, replace the Deployment image with the pushed image and
+   the Route `spec.host` with the public hostname. Configure DNS to point to
+   the OpenShift router. The Route uses edge TLS and the same `tls-acme`
+   annotation as the example deployment; confirm your cluster has an ACME
+   integration configured for that annotation and hostname, or arrange a
+   certificate using your cluster's supported Route certificate process. The
+   annotation alone does not provision a certificate. With no custom
+   certificate, the router's default certificate must be valid for the host.
+   The Route's `1h` timeout is an inactivity timeout for long inference streams;
+   adjust it to your router's policy and expected inference time.
+
+   If the cluster cannot already pull the private image, add an
+   `imagePullSecrets` entry under the Deployment's pod `spec`, referencing a
+   registry pull secret in the same namespace. Follow your cluster's approved
+   secret provisioning process; do not commit registry credentials.
+
+   Set the same public HTTPS origin in the Spark environment file. Apply the
+   file in the intended namespace:
 
    ```sh
    kubectl -n NAMESPACE apply -f deploy/frontend/kubernetes.yaml
    kubectl -n NAMESPACE wait service/spark-backend --for=condition=TailscaleEgressSvcReady=true --timeout=5m
+   kubectl -n NAMESPACE rollout status deployment/event-frontend
    ```
 
-Configure your ingress controller's request and upstream timeouts for long
-inference streams and disable its response buffering and caching. Nginx also
-disables buffering and automatic upstream retries. Check that the public HTTPS
+The frontend Nginx resolves `spark-backend` when it starts, so the egress
+Service must be ready before Nginx can start successfully. If it starts first,
+the container may restart until the Service becomes available. The operator's
+proxy pods must be permitted by the cluster's security policy; installing the
+operator may require administrator assistance.
+
+Ensure the OpenShift router and any intervening proxies do not buffer or cache
+streaming responses. Nginx disables buffering and automatic upstream retries.
+Check that the public HTTPS
 route can log in and that stream events arrive incrementally. The Spark API is
 not intended to be directly exposed to browsers. Nginx forwards cookies and
 Origin by default; FastAPI checks the configured public origin.
