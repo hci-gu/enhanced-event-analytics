@@ -2,7 +2,7 @@
 
 The frontend runs in OpenShift; the backend, PocketBase and embedded LanceDB
 run on a DGX Spark. The browser reaches the frontend over HTTPS. Nginx forwards
-`/api/` over a Tailscale Kubernetes egress proxy to Tailscale Serve on the
+`/api/` through a Tailscale userspace client in the frontend container to Tailscale Serve on the
 Spark, which forwards to FastAPI on host loopback. PocketBase shares the
 backend's network namespace and listens only on loopback. LanceDB is a local
 directory in the backend container, not a separate server.
@@ -46,7 +46,7 @@ runtime are not configured for multiple independent replicas.
    ```
 
    Serve is a host-level configuration, not a Compose service. Limit tailnet
-   access to this port to the operator egress proxy's tagged identity using the
+   access to this port to the frontend's Tailscale identity using the
    tailnet policy. Do not expose PocketBase. Docker publishes FastAPI only on
    host loopback. Tailscale encrypts the connection between devices; Serve
    terminates HTTPS on the Spark and forwards locally to FastAPI.
@@ -61,16 +61,16 @@ so its shared network namespace follows the backend.
 
 ## OpenShift frontend
 
-Install the Tailscale Kubernetes Operator separately and configure its
-credentials and tailnet tag ownership as described in the
-[operator documentation](https://tailscale.com/docs/kubernetes-operator/).
-The cluster must support its proxy pods. The egress ProxyGroup in the manifest
-uses two replicas; adjust its tags and access policy for your tailnet. See the
-[egress guide](https://tailscale.com/docs/kubernetes-operator/egress/access-tailnet-service).
+The frontend image runs Nginx and Tailscale in one container. Tailscale uses
+userspace networking; a local TCP bridge passes Nginx's TLS connections through
+its HTTP CONNECT proxy without terminating TLS. No Tailscale Operator or TUN
+device is required. `SPARK_TAILSCALE_HOST` in the Deployment must match both
+the `Host` and `proxy_ssl_name` values in Nginx and the Spark certificate name.
+The Spark and the frontend identity must belong to the intended tailnet and
+its policy must allow the frontend identity to reach the Spark on port 443.
 
-1. Replace `spark.example-tailnet.ts.net` in **both** `nginx.conf` and
-   `kubernetes.yaml` with the Spark's exact MagicDNS name. Nginx uses that
-   name for TLS SNI and certificate verification.
+1. Set the Spark's exact MagicDNS name in `nginx.conf` and `kubernetes.yaml`.
+   Nginx uses that name for TLS SNI and certificate verification.
 2. Build and push the frontend image from the repository root:
 
    ```sh
@@ -94,20 +94,37 @@ uses two replicas; adjust its tags and access policy for your tailnet. See the
    registry pull secret in the same namespace. Follow your cluster's approved
    secret provisioning process; do not commit registry credentials.
 
+   Create the `event-tailscale-auth` Secret in the same namespace, with a key
+   named `authkey` containing a Tailscale auth key authorized to register the
+   frontend in the correct tailnet. Use the cluster's approved secret manager
+   or create it from a protected local file, for example:
+
+   ```sh
+   oc -n NAMESPACE create secret generic event-tailscale-auth --from-file=authkey=/secure/path/to/authkey
+   ```
+
+   Do not commit the key, put it in the image, or pass it on the command line.
+   The key for registering the Spark itself may be single-use or already used;
+   the frontend needs a valid key for its own registration. The `emptyDir`
+   state persists across container restarts in the same Pod but not replacement
+   Pods. Use a suitably scoped reusable key valid for future Pod replacements,
+   manage its expiry and rotation, and consider an ephemeral key to clean up old
+   nodes. Provision an application identity and policy appropriate to your
+   tailnet; the auth key grants the ability to register nodes.
+
    Set the same public HTTPS origin in the Spark environment file. Apply the
    file in the intended namespace:
 
    ```sh
    kubectl -n NAMESPACE apply -f deploy/frontend/kubernetes.yaml
-   kubectl -n NAMESPACE wait service/spark-backend --for=condition=TailscaleEgressSvcReady=true --timeout=5m
    kubectl -n NAMESPACE rollout status deployment/event-frontend
    ```
 
-The frontend Nginx resolves `spark-backend` when it starts, so the egress
-Service must be ready before Nginx can start successfully. If it starts first,
-the container may restart until the Service becomes available. The operator's
-proxy pods must be permitted by the cluster's security policy; installing the
-operator may require administrator assistance.
+The frontend starts only after Tailscale authenticates. The HTTP readiness
+probe checks Nginx, not end-to-end connectivity to the Spark; verify that
+separately. After changing the auth Secret, restart or replace the Pod as
+appropriate. On an existing deployment, the old operator-created Service may
+remain until removed separately; it is no longer used by the frontend.
 
 Ensure the OpenShift router and any intervening proxies do not buffer or cache
 streaming responses. Nginx disables buffering and automatic upstream retries.
@@ -116,6 +133,6 @@ route can log in and that stream events arrive incrementally. The Spark API is
 not intended to be directly exposed to browsers. Nginx forwards cookies and
 Origin by default; FastAPI checks the configured public origin.
 
-If the Spark's MagicDNS name changes, update both references and rebuild the
+If the Spark's MagicDNS name changes, update the Deployment and Nginx references and rebuild the
 frontend image. Proxy pods or tailnet connectivity failures can interrupt an
 active stream; the application does not automatically retry analysis requests.
