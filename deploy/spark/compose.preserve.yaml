@@ -1,0 +1,26 @@
+# Optional override for deploying copies of existing host data. Stop all writers
+# and take backups before selecting these directories.
+services:
+  backend:
+    environment:
+      HF_HUB_CACHE: /models/hub
+      HF_HUB_OFFLINE: "1"
+    volumes:
+      - type: bind
+        source: ${LANCEDB_DATA_PATH:?Set LANCEDB_DATA_PATH to an existing directory}
+        target: /data/vectordb
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${HF_HUB_CACHE_HOST:?Set HF_HUB_CACHE_HOST to an existing Hugging Face hub cache}
+        target: /models/hub
+        read_only: true
+        bind:
+          create_host_path: false
+  pocketbase:
+    volumes:
+      - type: bind
+        source: ${POCKETBASE_DATA_PATH:?Set POCKETBASE_DATA_PATH to an existing directory}
+        target: /data/pb_data
+        bind:
+          create_host_path: false
