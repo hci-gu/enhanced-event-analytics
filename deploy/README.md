@@ -18,8 +18,9 @@ runtime are not configured for multiple independent replicas.
 ## Spark
 
 1. Install Docker Compose with GPU support, Tailscale, and join the tailnet.
-   Enable HTTPS certificates and MagicDNS for the tailnet. Ensure the required
-   model licenses have been accepted on Hugging Face.
+   Enable HTTPS certificates and MagicDNS for the tailnet. Ensure the Hugging
+   Face account associated with `HF_TOKEN` has accepted access terms for both
+   `google/gemma-4-26B-A4B-it` and `google/embeddinggemma-2`.
 2. Copy `deploy/spark/.env.example` to a private location outside the checkout,
    for example `/etc/event-analytics.env`. Set `MODEL_ID`, the exact public
    `AUTH_ALLOWED_ORIGINS`, and any required `HF_TOKEN` and `GEOAPIFY_API_KEY`.
@@ -58,6 +59,19 @@ cache can be downloaded again. `docker compose down -v` deletes these volumes.
 PocketBase migrations run at startup. After recreating the backend container,
 recreate PocketBase too (`docker compose ... up -d --force-recreate pocketbase`)
 so its shared network namespace follows the backend.
+
+To reuse copies of existing PocketBase and LanceDB directories, stop their
+writers and back up both datasets first. Set `POCKETBASE_DATA_PATH` and
+`LANCEDB_DATA_PATH` to the absolute paths of the copies in the environment
+file. Set `HF_HUB_CACHE_HOST` to the existing Hugging Face `hub` cache directory,
+including its shared blob storage. The override mounts this cache read-only and
+enables offline mode, so both model snapshots must already be complete. The
+parent Hugging Face directory, which can contain credentials, is not mounted.
+Then add `-f deploy/spark/compose.preserve.yaml` after the main Compose
+file in every Compose command. This override binds the copies in place of the
+named database volumes; it does not migrate or back up data automatically.
+Keep the original directories stopped while the deployment is active. Note
+that PocketBase migrations may update the copies on startup.
 
 ## OpenShift frontend
 
