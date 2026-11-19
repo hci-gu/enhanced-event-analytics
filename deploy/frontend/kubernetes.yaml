@@ -14,11 +14,11 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: registry.k8s.gu.se/appademin/event-frontend:0.0.2-test
+          image: registry.k8s.gu.se/appademin/event-frontend:0.0.4-test
           imagePullPolicy: Always
           env:
             - name: SPARK_TAILSCALE_HOST
-              value: clic-spark.tail796302.ts.net
+              value: spark-6689.taila76eef.ts.net
           volumeMounts:
             - name: tailscale-auth
               mountPath: /var/run/tailscale-auth

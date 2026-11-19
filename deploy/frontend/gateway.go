@@ -57,9 +57,14 @@ func run() error {
 		return fmt.Errorf("invalid SPARK_TAILSCALE_HOST")
 	}
 	target := net.JoinHostPort(host, "443")
+	// The volume root may belong to a different UID on OpenShift. Tailscale
+	// chmods its state directory, so use a child owned by this container user.
+	if err := os.MkdirAll("/var/lib/tailscale/private", 0700); err != nil {
+		return fmt.Errorf("create Tailscale state directory: %w", err)
+	}
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()
-	daemon := exec.CommandContext(ctx, "tailscaled", "--tun=userspace-networking", "--state=/var/lib/tailscale/tailscaled.state", "--socket=/tmp/tailscaled.sock", "--outbound-http-proxy-listen=127.0.0.1:1055")
+	daemon := exec.CommandContext(ctx, "tailscaled", "--tun=userspace-networking", "--state=/var/lib/tailscale/private/tailscaled.state", "--socket=/tmp/tailscaled.sock", "--outbound-http-proxy-listen=127.0.0.1:1055")
 	daemon.Stdout, daemon.Stderr = os.Stdout, os.Stderr
 	if err := daemon.Start(); err != nil {
 		return err
