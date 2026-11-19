@@ -2,7 +2,8 @@ FROM golang:1.27 AS pocketbase-build
 WORKDIR /src
 COPY pocketbase/go.mod pocketbase/go.sum ./
 RUN go mod download
-COPY pocketbase/ ./
+# Local database files and generated collection snapshots are not build inputs.
+COPY --exclude=pb_data --exclude=migrations/*_collections_snapshot.go pocketbase/ ./
 RUN CGO_ENABLED=0 go build -o /pocketbase .
 
 FROM debian:bookworm-slim AS pocketbase
