@@ -10,6 +10,8 @@ from time import perf_counter
 from typing import TYPE_CHECKING, Any, Protocol
 from uuid import uuid4
 
+import httpx
+
 if TYPE_CHECKING:
     from app import ModelRuntime
 
@@ -78,6 +80,47 @@ class TransformersEngine:
     async def close(self) -> None:
         # Dropping the runtime releases the Transformers model and processor.
         pass
+
+
+class OpenAICompatibleEngine:
+    def __init__(self, base_url: str, api_key: str, *, transport: httpx.BaseTransport | None = None):
+        try:
+            url = httpx.URL(base_url)
+        except httpx.InvalidURL:
+            raise RuntimeError("API_BASE_URL must be an HTTP(S) API base URL") from None
+        if url.scheme not in {"http", "https"} or not url.host or url.userinfo or url.query or url.fragment:
+            raise RuntimeError("API_BASE_URL must be an HTTP(S) API base URL")
+        headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+        self.client = httpx.Client(base_url=url, headers=headers, timeout=180.0, transport=transport)
+
+    def generate(self, messages, runtime: "ModelRuntime", *, max_new_tokens: int,
+                 workflow_name: str, retries: int) -> str:
+        from workflows import WorkflowError
+
+        try:
+            response = self.client.post("chat/completions", json={
+                "model": runtime.model_id,
+                "messages": messages,
+                "max_tokens": max_new_tokens,
+                "temperature": 0,
+            })
+            response.raise_for_status()
+            content = response.json()["choices"][0]["message"]["content"]
+            if not isinstance(content, str) or not content.strip():
+                raise ValueError("Empty completion")
+            return content
+        except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError) as exc:
+            status = exc.response.status_code if isinstance(exc, httpx.HTTPStatusError) else None
+            logging.getLogger("uvicorn.error.workflows").debug(
+                "LLM call workflow=%s status=failed retries=%d upstream_status=%s error_type=%s",
+                workflow_name, retries, status, type(exc).__name__,
+            )
+            if status == 413:
+                raise WorkflowError(413, "Event and workflow instructions exceed the upstream input limit") from None
+            raise WorkflowError(502, "Model inference failed") from None
+
+    async def close(self) -> None:
+        await asyncio.to_thread(self.client.close)
 
 
 class VllmEngine:

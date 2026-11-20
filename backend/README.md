@@ -86,6 +86,31 @@ extraction from all 25 PDFs without loading a model.
 
 ## Serving engine selection
 
+Set `API_BASE_URL` in `backend/.env` to send all text generation through an
+OpenAI-compatible Chat Completions API. Use the API base path, such as `/v1`,
+and the model identifier expected by that server. For a separate inference
+server running on the Spark, use its actual port, for example:
+
+```dotenv
+API_BASE_URL=http://127.0.0.1:8001/v1
+API_KEY=
+MODEL_ID=your-served-model-name
+```
+
+For OpenRouter, use `API_BASE_URL=https://openrouter.ai/api/v1`, set `API_KEY` to
+your OpenRouter key, and set `MODEL_ID` to the OpenRouter model slug. A blank
+`API_KEY` omits the Authorization header. Restart the backend after changing
+configuration.
+
+A configured URL takes precedence over `SERVING_ENGINE` for both analysis
+endpoints. The backend sends generation prompts containing event text to that
+endpoint, and the upstream model enforces its own context limit. The app
+loads no local generation weights in this mode. Embeddings still run locally
+on `MODEL_DEVICE`. `/health` reports `serving_engine: openai_compatible` and
+the configured model ID without contacting the upstream server.
+
+With `API_BASE_URL` blank, the in-process settings below apply.
+
 `SERVING_ENGINE` defaults to `transformers`; its only accepted values are
 `transformers` and `vllm` (lowercase, surrounding whitespace trimmed). Invalid
 values fail startup. `MODEL_ID` remains required for either engine, with no

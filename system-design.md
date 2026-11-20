@@ -80,6 +80,10 @@ The lifespan loads one generation runtime per server process into
 `MODEL_ID` explicitly selects a Hugging Face model or local directory.
 `MODEL_DEVICE=auto|cpu|cuda` selects the Transformers device. `/health` reports
 the selected `serving_engine` alongside existing model metadata.
+A configured `API_BASE_URL` takes precedence and selects an OpenAI-compatible
+Chat Completions runtime for all generation calls. `MODEL_ID` identifies the
+upstream model and `API_KEY` supplies optional bearer authentication. This mode
+loads only the local embedding model and uses the upstream context limit.
 When CUDA is selected, `from_pretrained()` places the entire LLM directly on
 `cuda:0` using a fixed device map, without a later `.to()` call. The CUDA
 dependency profile includes Accelerate. DEBUG weights timing includes CUDA

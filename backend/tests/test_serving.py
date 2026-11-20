@@ -1,4 +1,4 @@
-"""Embedded-engine tests use mocked weights, CUDA, vLLM, and HTTP services."""
+"""Generation engine tests use mocked weights, CUDA, vLLM, and HTTP services."""
 
 import asyncio
 import builtins
@@ -7,6 +7,7 @@ import sys
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
+import httpx
 import pytest
 import torch
 from fastapi.testclient import TestClient
@@ -365,6 +366,50 @@ def test_analysis_contract_for_both_engines(api_runtime, stream, fake_vllm, pock
     assert not hasattr(backend.app.state, "runtime")
     if api_runtime.mode == "vllm":
         fake_vllm.engine.shutdown.assert_called_once()
+
+
+@pytest.mark.parametrize("api_runtime", ["transformers"], indirect=True)
+@pytest.mark.parametrize("stream,base_url,api_key", [
+    (False, "http://127.0.0.1:8001/v1", ""),
+    (True, "https://openrouter.ai/api/v1", "test-key"),
+])
+def test_configured_chat_completions(api_runtime, monkeypatch, stream, base_url, api_key):
+    monkeypatch.setenv("API_BASE_URL", base_url)
+    monkeypatch.setenv("API_KEY", api_key)
+    monkeypatch.setenv("MODEL_ID", "provider/model")
+    monkeypatch.setenv("SERVING_ENGINE", "vllm")
+    requests = []
+
+    def complete(request):
+        requests.append(request)
+        return httpx.Response(200, json={"choices": [{"message": {
+            "content": "Testhändelse" if len(requests) == 1 else "[]",
+        }}]})
+
+    engine = serving.OpenAICompatibleEngine(base_url, api_key, transport=httpx.MockTransport(complete))
+    engine_factory = Mock(return_value=engine)
+    monkeypatch.setattr(backend, "OpenAICompatibleEngine", engine_factory)
+    with TestClient(backend.app) as client:
+        assert client.get("/health").json()["serving_engine"] == "openai_compatible"
+        assert requests == []
+        response = client.post("/analyze-event/stream" if stream else "/analyze-event", json={"text": "Water rises"})
+        assert response.status_code == 200
+        if stream:
+            assert "event: analysis_completed" in response.text
+            assert "Testhändelse" in response.text
+        else:
+            assert response.json()["title"] == "Testhändelse"
+            assert response.json()["embedding"] == api_runtime.embedding
+    engine_factory.assert_called_once_with(base_url, api_key)
+    api_runtime.config_loader.assert_not_called()
+    assert engine.client.is_closed
+    assert len(requests) == 6
+    for request in requests:
+        assert str(request.url) == f"{base_url}/chat/completions"
+        assert request.headers.get("Authorization") == (f"Bearer {api_key}" if api_key else None)
+        payload = json.loads(request.content)
+        assert payload["model"] == "provider/model"
+        assert any("Water rises" in message["content"] for message in payload["messages"])
 
 
 @pytest.mark.parametrize("api_runtime", ["transformers"], indirect=True)

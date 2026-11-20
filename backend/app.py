@@ -40,7 +40,7 @@ from persistence import AnalysisPersistence, create_pocketbase_client
 from vector_storage import VectorStorage, create_vector_storage
 from auth import UserSession, require_origin, require_user, router as auth_router
 from history import router as history_router
-from serving import GenerationEngine, TransformersEngine, VllmSettings, create_vllm_engine, load_serving_engine
+from serving import GenerationEngine, OpenAICompatibleEngine, TransformersEngine, VllmSettings, create_vllm_engine, load_serving_engine
 
 
 logger = logging.getLogger("uvicorn.error.app")
@@ -60,7 +60,7 @@ def configure_logging() -> None:
 
 @dataclass
 class ModelRuntime:
-    tokenizer: PreTrainedTokenizerBase
+    tokenizer: PreTrainedTokenizerBase | None
     model: Any
     device: str
     model_id: str
@@ -69,7 +69,7 @@ class ModelRuntime:
     retry_limit: int = 1
     analysis_timezone: ZoneInfo | None = None
     workflow_settings: WorkflowSettings | None = field(default=None, repr=False)
-    serving_engine: Literal["transformers", "vllm"] = "transformers"
+    serving_engine: Literal["transformers", "vllm", "openai_compatible"] = "transformers"
     engine: GenerationEngine = field(default_factory=TransformersEngine, repr=False)
 
 
@@ -97,13 +97,7 @@ def loading_stage(stage: str, *, device: str | None = None):
         )
 
 
-def load_runtime() -> ModelRuntime:
-    load_serving_engine()
-    retry_limit = load_retry_limit()
-    model_id = os.environ.get("MODEL_ID", "").strip()
-    if not model_id:
-        raise RuntimeError("MODEL_ID must identify a Hugging Face model or local directory")
-
+def resolve_model_device() -> str:
     with loading_stage("device_selection"):
         device = os.environ.get("MODEL_DEVICE", "auto")
         if device not in {"auto", "cpu", "cuda"}:
@@ -113,6 +107,16 @@ def load_runtime() -> ModelRuntime:
             if device == "cuda" and not cuda_available:
                 raise RuntimeError("MODEL_DEVICE=cuda requires an available CUDA device")
             device = "cuda" if cuda_available else "cpu"
+    return device
+
+
+def load_runtime() -> ModelRuntime:
+    load_serving_engine()
+    retry_limit = load_retry_limit()
+    model_id = os.environ.get("MODEL_ID", "").strip()
+    if not model_id:
+        raise RuntimeError("MODEL_ID must identify a Hugging Face model or local directory")
+    device = resolve_model_device()
 
     started = perf_counter()
     logger.info("Model loading started (model_id=%s, device=%s)", model_id, device)
@@ -184,7 +188,8 @@ async def lifespan(app: FastAPI):
 
 @asynccontextmanager
 async def model_lifespan(app: FastAPI):
-    serving_engine = load_serving_engine()
+    api_base_url = os.environ.get("API_BASE_URL", "").strip()
+    serving_engine = "openai_compatible" if api_base_url else load_serving_engine()
     settings = VllmSettings.from_environment() if serving_engine == "vllm" else None
     with loading_stage("categories"):
         categories = load_workflow_categories()
@@ -192,7 +197,19 @@ async def model_lifespan(app: FastAPI):
     embedding_runtime = None
     executor = None
     try:
-        if settings is None:
+        if api_base_url:
+            model_id = os.environ.get("MODEL_ID", "").strip()
+            if not model_id:
+                raise RuntimeError("MODEL_ID must identify a model served by API_BASE_URL")
+            device = resolve_model_device()
+            retry_limit = load_retry_limit()
+            engine = OpenAICompatibleEngine(api_base_url, os.environ.get("API_KEY", "").strip())
+            runtime = ModelRuntime(
+                tokenizer=None, model=None, device=device, model_id=model_id,
+                retry_limit=retry_limit, serving_engine="openai_compatible", engine=engine,
+            )
+            embedding_runtime = load_embedding_runtime(device)
+        elif settings is None:
             runtime = load_runtime()
             embedding_runtime = load_embedding_runtime(runtime.device)
         else:

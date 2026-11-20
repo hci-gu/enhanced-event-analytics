@@ -29,6 +29,8 @@ def serving_environment(monkeypatch):
     monkeypatch.delenv("DISABLE_DATE_WORKFLOW", raising=False)
     monkeypatch.delenv("GEOAPIFY_API_KEY", raising=False)
     monkeypatch.delenv("SERVING_ENGINE", raising=False)
+    monkeypatch.setenv("API_BASE_URL", "")
+    monkeypatch.setenv("API_KEY", "")
     monkeypatch.delenv("VLLM_GPU_MEMORY_UTILIZATION", raising=False)
     monkeypatch.delenv("VLLM_KV_CACHE_MEMORY_BYTES", raising=False)
 
