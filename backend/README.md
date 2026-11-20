@@ -39,6 +39,51 @@ environment and restart the backend. The 26B A4B checkpoint is a mixture-of-expe
 model; its active parameter count does not mean only 4B parameters need to fit
 in memory. The current loader places the full checkpoint on CPU or GPU 0.
 
+## Risk catalogue resource mapping
+
+[`resources/risk-catalogue.json`](resources/risk-catalogue.json) explicitly maps
+each of the 24 IDs in `schemas/risks.json` to one unique PDF. File paths are
+relative to `backend/resources/`, independent of the process working directory.
+Use these exact IDs for lookups rather than deriving filenames from display names.
+In particular, `skogs-_och_vegetationsbränder` maps to
+`skogs-och-vegetationsbränder.pdf`, and `översvämningar` maps to the existing
+filename `översvämmningar.pdf`.
+
+The 25th PDF is configured separately under `user_guide`.
+`auto_include_when_risks_present` defaults to `false`; set it to `true` to request
+that context loading include the guide once whenever at least one risk
+is classified. With no classified risks, no catalogue documents should be loaded,
+regardless of this setting. Multiple risks should select their respective PDFs
+and at most one copy of the guide.
+
+After risk classification, both analysis endpoints load the selected PDFs using
+`pypdf`, before completing the risk workflow and starting the next workflow.
+`risk_context.py` retains Swedish Unicode text unchanged apart from trimming page
+edges, with one-based physical PDF page numbers (including blank pages), the
+resource-relative source path, and the associated risk ID. The guide has no risk
+ID. Duplicate risk IDs load only once, in classification order; the guide is last.
+Only selected PDFs are opened; no OCR, translation, model inference, or prompt
+injection is performed by this loader.
+
+An `AnalysisContext` local to each workflow iterator holds `risk_documents` and
+`risk_documents_error` for future analysis steps. Callers of `run_workflows` or
+`iter_workflow_events` can supply `context=AnalysisContext()` to inspect it.
+Document text is not stored on the shared model runtime, returned to the frontend,
+or persisted. It is released with the request unless a caller retains its context.
+Manifest edits take effect on the next analysis; extracted text is not cached.
+
+Loading is atomic: a missing/unmapped, corrupt, encrypted, or wholly textless PDF
+leaves an empty document context with an error and logs a warning. Classification
+and subsequent workflows continue. Scanned PDFs require a future OCR step; blank
+pages inside an otherwise readable document are retained. INFO logs report loaded
+document/page counts without logging document text. PDF extraction preserves text,
+not table structure, images, or guaranteed visual reading order.
+
+`tests/test_risk_catalogue.py` checks exact schema coverage, unique document
+assignments, guide separation, and all 25 PDF paths. `tests/test_risk_context.py`
+checks selection, the guide policy, loading failures, and actual Swedish text
+extraction from all 25 PDFs without loading a model.
+
 ## Serving engine selection
 
 `SERVING_ENGINE` defaults to `transformers`; its only accepted values are

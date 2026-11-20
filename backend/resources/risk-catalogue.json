@@ -1,0 +1,32 @@
+{
+  "user_guide": {
+    "file": "risk-catalogue/användarguide-till-riskkatalogen.pdf",
+    "auto_include_when_risks_present": false
+  },
+  "risks": {
+    "elektromagnetiska_hot": "risk-catalogue/elektromagnetiska-hot.pdf",
+    "händelser_med_biologiska_ämnen": "risk-catalogue/händelser-med-biologiska-ämnen.pdf",
+    "isbildning_och_isstorm": "risk-catalogue/isbildning-och-isstorm.pdf",
+    "jordbävningar": "risk-catalogue/jordbävningar.pdf",
+    "kemiska_och_explosiva_händelser": "risk-catalogue/kemiska-och-explosiva-händelser.pdf",
+    "kärnvapen": "risk-catalogue/kärnvapen.pdf",
+    "låga_temperaturer": "risk-catalogue/låga-temperaturer.pdf",
+    "meteoriter_och_asteroider": "risk-catalogue/meteoriter-och-asteroider.pdf",
+    "oljeutsläpp_och_föroreningsolyckor_till_sjöss": "risk-catalogue/oljeutsläpp-och-föroreningsolyckor-till-sjöss.pdf",
+    "olyckor_med_radioaktiva_ämnen": "risk-catalogue/olyckor-med-radioaktiva-ämnen.pdf",
+    "olyckor_vid_evenemang_och_folksamlingar": "risk-catalogue/olyckor-vid-evenemang-och-folksamlingar.pdf",
+    "ras_och_skred": "risk-catalogue/ras-och-skred.pdf",
+    "sabotage": "risk-catalogue/sabotage.pdf",
+    "skogs-_och_vegetationsbränder": "risk-catalogue/skogs-och-vegetationsbränder.pdf",
+    "solstormar": "risk-catalogue/solstormar.pdf",
+    "stora_snömängder": "risk-catalogue/stora-snömängder.pdf",
+    "stormar": "risk-catalogue/stormar.pdf",
+    "störningar_i_satellitbaserade_navigationssystem": "risk-catalogue/störningar-i-satellitbaserade-navigationssystem.pdf",
+    "terrorism_och_extremism": "risk-catalogue/terrorism-och-extremism.pdf",
+    "vattenbrist_och_torka": "risk-catalogue/vattenbrist-och-torka.pdf",
+    "vulkanutbrott": "risk-catalogue/vulkanutbrott.pdf",
+    "värmeböljor_och_höga_temperaturer": "risk-catalogue/värmeböljor-och-höga-temperaturer.pdf",
+    "åska_och_blixtnedslag": "risk-catalogue/åska-och-blixtnedslag.pdf",
+    "översvämningar": "risk-catalogue/översvämmningar.pdf"
+  }
+}

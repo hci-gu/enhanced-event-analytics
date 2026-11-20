@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: event-frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: event-frontend
+  template:
+    metadata:
+      labels:
+        app: event-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: registry.k8s.gu.se/appademin/event-frontend:0.0.5-test
+          imagePullPolicy: Always
+          env:
+            - name: SPARK_TAILSCALE_HOST
+              value: spark-6689.taila76eef.ts.net
+          volumeMounts:
+            - name: tailscale-auth
+              mountPath: /var/run/tailscale-auth
+              readOnly: true
+            - name: tailscale-state
+              mountPath: /var/lib/tailscale
+          ports:
+            - containerPort: 8080
+              name: web
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /
+              port: web
+          livenessProbe:
+            httpGet:
+              path: /
+              port: web
+      volumes:
+        - name: tailscale-auth
+          secret:
+            secretName: event-tailscale-auth
+        - name: tailscale-state
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: event-frontend-service
+spec:
+  selector:
+    app: event-frontend
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: web
+---
+kind: Route
+apiVersion: route.openshift.io/v1
+metadata:
+  name: event-frontend
+  annotations:
+    kubernetes.io/tls-acme: 'true'
+    haproxy.router.openshift.io/set-forwarded-headers: replace
+    haproxy.router.openshift.io/timeout: 1h
+spec:
+  host: event-analysis.test.appadem.in
+  to:
+    kind: Service
+    name: event-frontend-service
+    weight: 100
+  port:
+    targetPort: 8080
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None

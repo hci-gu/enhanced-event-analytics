@@ -370,6 +370,37 @@ def test_registry_orchestrates_functions(categories, monkeypatch, no_date_infere
     second.assert_called_once_with("Event", runtime, ())
 
 
+@pytest.mark.parametrize("fails", [False, True])
+def test_risk_context_loads_before_next_workflow_and_is_request_local(monkeypatch, fails):
+    from risk_context import AnalysisContext, RiskDocumentError
+
+    monkeypatch.setattr(workflows, "generate_title", Mock(return_value="Testhändelse"))
+    context = AnalysisContext()
+    # The loader result normally contains immutable RiskDocuments with pages.
+    document = SimpleNamespace(pages=("page",))
+    loader = Mock(return_value=(document,))
+    if fails:
+        loader.side_effect = RiskDocumentError("Could not extract PDF")
+    monkeypatch.setattr(workflows, "load_risk_documents", loader)
+
+    def next_workflow(text, runtime, categories):
+        assert context.risk_documents == (() if fails else (document,))
+        assert context.risk_documents_error == ("Could not extract PDF" if fails else None)
+        return []
+
+    matches = [{"ID": "stormar", "name": "Stormar", "evidence": []}]
+    monkeypatch.setattr(workflows, "WORKFLOWS", {
+        "risks": workflows.Workflow(Mock(return_value=matches)),
+        "next": workflows.Workflow(next_workflow),
+    })
+    runtime = SimpleNamespace(workflow_settings=workflows.WorkflowSettings(True, True))
+    output = workflows.run_workflows("Text", runtime, {"risks": (), "next": ()}, context=context)
+    assert output["results"]["risks"] == [{"ID": "stormar", "name": "Stormar"}]
+    assert list(loader.call_args.args[0]) == ["stormar"]
+    assert not hasattr(runtime, "risk_documents")
+    assert AnalysisContext().risk_documents == ()
+
+
 @pytest.mark.parametrize("evidence,expected", [
     (["Vatten stiger", "Vatten stiger", "😀"], ["Vatten stiger", "😀"]),
     (["vatten stiger", "Vatten  stiger", "", " ", 12, None], []),

@@ -57,6 +57,17 @@ heading once finished; both analysis and summary screens use the generated title
 It has no status row or contribution to category progress.
 
 ## Backend
+The context resource manifest in `backend/resources/risk-catalogue.json` maps all
+24 risk category IDs to unique PDFs, with a separate user guide and an
+`auto_include_when_risks_present` flag (default `false`). Paths are relative to
+`backend/resources/`. After risk classification, `risk_context.py` loads only the
+selected PDFs with pypdf, preserving Swedish text, page numbers and source paths
+in a request-local `AnalysisContext`. The guide is included once only when enabled
+and at least one risk is classified. Loading failures leave an empty context with
+an error and a warning while classification continues. Content is not sent to the
+frontend, persisted, or placed on the shared model runtime. OCR and analysis using
+the document content (including prompt injection) remain future work.
+
 FastAPI exposes `POST /analyze-event`, accepting JSON with a non-empty `text`
 string. It trims the text and currently returns
 `{"status":"ok","title":"Händelserubrik","results":{"risks":[],"reach":[],"service":[],"properties":[],"protection":[]}}`.

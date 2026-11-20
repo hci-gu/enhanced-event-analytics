@@ -15,6 +15,7 @@ import torch
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError, field_validator
 
 from locations import extract_locations as resolve_locations
+from risk_context import AnalysisContext, RiskDocumentError, load_risk_documents
 
 if TYPE_CHECKING:
     from app import ModelRuntime
@@ -533,8 +534,12 @@ def load_workflow_categories() -> dict[str, tuple[Category, ...]]:
 
 
 def iter_workflow_events(
-    text: str, runtime: "ModelRuntime", categories: dict[str, tuple[Category, ...]]
+    text: str, runtime: "ModelRuntime", categories: dict[str, tuple[Category, ...]],
+    *, context: AnalysisContext | None = None,
 ) -> Iterator[tuple[str, dict[str, Any]]]:
+    context = context if context is not None else AnalysisContext()
+    context.risk_documents = ()
+    context.risk_documents_error = None
     workflows = tuple(WORKFLOWS.items())
     settings = getattr(runtime, "workflow_settings", None) or load_workflow_settings()
     supplemental = []
@@ -552,6 +557,14 @@ def iter_workflow_events(
         logger.info("Workflow '%s' started", name)
         try:
             result = workflow.function(text, runtime, categories[name])
+            if name == "risks":
+                try:
+                    context.risk_documents = load_risk_documents(match["ID"] for match in result)
+                    logger.info("Risk context loaded: documents=%d pages=%d", len(context.risk_documents),
+                                sum(len(document.pages) for document in context.risk_documents))
+                except RiskDocumentError as exc:
+                    context.risk_documents_error = str(exc)
+                    logger.warning("Risk context loading failed: %s", exc, exc_info=True)
         except Exception:
             logger.info("Workflow '%s' failed after %.2fs", name, perf_counter() - started)
             raise
@@ -569,11 +582,12 @@ def iter_workflow_events(
 def run_workflows(
     text: str, runtime: "ModelRuntime", categories: dict[str, tuple[Category, ...]],
     *, on_event: Callable[[str, dict[str, Any]], None] | None = None,
+    context: AnalysisContext | None = None,
 ) -> dict[str, Any]:
     results = {}
     title = FALLBACK_TITLE
     final = {"dates": None, "dates_error": None, "location": None, "location_error": None}
-    for event, data in iter_workflow_events(text, runtime, categories):
+    for event, data in iter_workflow_events(text, runtime, categories, context=context):
         if on_event is not None:
             on_event(event, data)
         if event == "title_completed":
